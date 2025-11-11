@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My 暗記帳</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- ホーム画面 -->
+    <div id="home-view" class="view">
+        <div class="container">
+            <h1 class="app-title">My 暗記帳</h1>
+            <div class="button-container">
+                <button id="start-quiz-btn" class="primary-button">学習開始</button>
+                <button id="show-list-btn" class="primary-button">一覧表示</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 単語カード追加画面 -->
+    <div id="add-view" class="view hidden">
+        <div class="nav-bar">
+            <button id="cancel-add-btn" class="nav-button">キャンセル</button>
+            <h2 class="nav-title">新規追加</h2>
+            <button id="save-card-btn" class="nav-button">保存</button>
+        </div>
+        <div class="container">
+            <div class="form-group">
+                <label for="category-input">カテゴリ</label>
+                <input type="text" id="category-input" class="input-field" placeholder="例: 英単語">
+            </div>
+            <div class="form-group">
+                <label for="question-input">問題</label>
+                <textarea id="question-input" class="input-field" rows="4" placeholder="例: apple"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="answer-input">解答</label>
+                <textarea id="answer-input" class="input-field" rows="4" placeholder="例: りんご"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- 単語カード一覧画面 -->
+    <div id="list-view" class="view hidden">
+        <div class="nav-bar">
+            <button id="back-from-list-btn" class="nav-button">戻る</button>
+            <h2 class="nav-title">一覧</h2>
+            <button id="add-from-list-btn" class="nav-button">追加</button>
+        </div>
+        <div class="container">
+            <div id="card-list"></div>
+        </div>
+    </div>
+
+    <!-- 学習画面 -->
+    <div id="quiz-view" class="view hidden">
+        <div class="nav-bar">
+            <button id="quit-quiz-btn" class="nav-button">終了</button>
+            <h2 class="nav-title">学習中</h2>
+            <div class="nav-button"></div>
+        </div>
+        <div class="container quiz-container">
+            <div class="category-label" id="quiz-category"></div>
+            <div class="card-display">
+                <div class="question-area">
+                    <h3>問題</h3>
+                    <div id="question-text" class="text-display"></div>
+                </div>
+                <div class="answer-area hidden" id="answer-area">
+                    <h3>解答</h3>
+                    <div id="answer-text" class="text-display"></div>
+                </div>
+            </div>
+            <button id="quiz-action-btn" class="primary-button">答えを表示</button>
+        </div>
+    </div>
+
+    <!-- 完了画面 -->
+    <div id="completion-view" class="view hidden">
+        <div class="container">
+            <h1 class="completion-title">完了!</h1>
+            <p class="completion-message">お疲れ様でした</p>
+            <button id="back-to-home-btn" class="primary-button">ホームに戻る</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
