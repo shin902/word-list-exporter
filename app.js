@@ -18,10 +18,26 @@ function loadApiKey() {
     return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
 }
 
+// Gemini API Keyの削除
+function clearApiKey() {
+    localStorage.removeItem(API_KEY_STORAGE_KEY);
+}
+
 // Gemini API Keyのバリデーション
 function validateApiKey(apiKey) {
-    // Gemini API keyは"AIza"で始まる39文字の文字列
-    return apiKey && apiKey.startsWith('AIza') && apiKey.length === 39;
+    // Gemini API keyは通常"AIza"で始まる39文字の文字列
+    // ただし、将来的に形式が変わる可能性があるため、基本的な長さチェックのみ行う
+    if (!apiKey) return false;
+
+    // 最低限の長さチェック（20文字以上）
+    if (apiKey.length < 20) return false;
+
+    // "AIza"で始まる場合は39文字であることを確認（現在の標準形式）
+    if (apiKey.startsWith('AIza') && apiKey.length !== 39) {
+        return false;
+    }
+
+    return true;
 }
 
 // ローカルストレージに単語カードを保存
@@ -320,7 +336,7 @@ document.getElementById('save-settings-btn').addEventListener('click', () => {
         return;
     }
     if (!validateApiKey(apiKey)) {
-        alert('API Keyの形式が正しくありません。Gemini API Keyは"AIza"で始まる39文字の文字列です。');
+        alert('API Keyの形式が正しくありません。20文字以上の英数字である必要があります。');
         return;
     }
     saveApiKey(apiKey);
@@ -330,14 +346,37 @@ document.getElementById('save-settings-btn').addEventListener('click', () => {
     }, 3000);
 });
 
+// 設定画面: API Keyクリアボタン
+document.getElementById('clear-api-key-btn').addEventListener('click', () => {
+    if (confirm('API Keyを削除しますか？画像インポート機能を使用するには再度設定が必要になります。')) {
+        clearApiKey();
+        document.getElementById('gemini-api-key-input').value = '';
+        document.getElementById('settings-status').textContent = 'API Keyを削除しました';
+        setTimeout(() => {
+            document.getElementById('settings-status').textContent = '';
+        }, 3000);
+    }
+});
+
 // 画像インポート機能
 let selectedImage = null;
 let extractedCards = [];
 let isProcessingOCR = false; // OCR処理中フラグ
 
+// インポートステータス更新のヘルパー関数
+function updateImportStatus(message) {
+    const statusDiv = document.getElementById('import-status');
+    if (statusDiv) {
+        statusDiv.textContent = message;
+    }
+}
+
 // 赤字検出の閾値設定
+// R値が高く、G・B値が低い場合に赤と判定
 const RED_DETECTION_THRESHOLD = {
+    // 濃い赤の判定: R > 150 AND G < 100 AND B < 100
     darkRed: { r: 150, g: 100, b: 100 },
+    // 薄い赤の判定: R > 180 AND R > G×1.5 AND R > B×1.5
     lightRed: { r: 180, ratio: 1.5 }
 };
 
@@ -357,7 +396,7 @@ function initImportView() {
     document.getElementById('image-input').value = '';
     document.getElementById('preview-canvas').style.display = 'none';
     document.getElementById('process-image-btn').disabled = true;
-    document.getElementById('import-status').textContent = '';
+    updateImportStatus('');
     document.getElementById('import-preview').innerHTML = '';
 }
 
@@ -433,37 +472,36 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
         return;
     }
 
-    const statusDiv = document.getElementById('import-status');
     const previewDiv = document.getElementById('import-preview');
 
-    statusDiv.textContent = '画像を処理中...';
+    updateImportStatus('画像を処理中...');
     previewDiv.innerHTML = '';
     isProcessingOCR = true;
 
     try {
         // 赤字部分を抽出
-        statusDiv.textContent = '赤字を検出中...';
+        updateImportStatus('赤字を検出中...');
         const redTextCanvas = extractRedText(selectedImage);
 
         // 画像をリサイズ
         const resizedCanvas = resizeCanvas(redTextCanvas, GEMINI_API_CONFIG.maxImageSize);
 
         // OCRで文字認識
-        statusDiv.textContent = 'OCRで文字を認識中... (しばらくお待ちください)';
+        updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
         const text = await performOCR(resizedCanvas);
 
         // テキストを解析してカードを作成
-        statusDiv.textContent = 'テキストを解析中...';
+        updateImportStatus('テキストを解析中...');
         extractedCards = parseTextToCards(text);
 
         if (extractedCards.length === 0) {
-            statusDiv.textContent = '赤字のテキストが見つかりませんでした。別の画像を試してください。';
+            updateImportStatus('赤字のテキストが見つかりませんでした。別の画像を試してください。');
             return;
         }
 
         // プレビューを表示
         displayImportPreview(extractedCards);
-        statusDiv.textContent = `${extractedCards.length}件のカードを検出しました。確認して保存してください。`;
+        updateImportStatus(`${extractedCards.length}件のカードを検出しました。確認して保存してください。`);
 
         // 保存ボタンを表示
         const saveBtn = document.createElement('button');
@@ -477,7 +515,7 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
 
     } catch (error) {
         console.error('処理エラー:', error);
-        statusDiv.textContent = 'エラーが発生しました: ' + error.message;
+        updateImportStatus('エラーが発生しました: ' + error.message);
     } finally {
         isProcessingOCR = false;
     }
@@ -542,7 +580,7 @@ async function performOCR(canvas) {
     const base64Image = canvas.toDataURL('image/png').split(',')[1];
 
     // Gemini APIにリクエスト
-    document.getElementById('import-status').textContent = 'Gemini APIで画像を解析中...';
+    updateImportStatus('Gemini APIで画像を解析中...');
 
     const response = await fetch(GEMINI_API_CONFIG.endpoint, {
         method: 'POST',
@@ -568,6 +606,16 @@ async function performOCR(canvas) {
     });
 
     if (!response.ok) {
+        // レート制限エラーの特別処理
+        if (response.status === 429) {
+            throw new Error('APIのリクエスト上限に達しました。しばらく時間をおいてから再度お試しください。');
+        }
+
+        // 認証エラーの特別処理
+        if (response.status === 401 || response.status === 403) {
+            throw new Error('API Keyが無効です。設定画面で正しいAPI Keyを設定してください。');
+        }
+
         let errorMessage = response.statusText;
         try {
             const errorData = await response.json();
@@ -583,14 +631,14 @@ async function performOCR(canvas) {
     try {
         data = await response.json();
     } catch (e) {
-        throw new Error('Gemini APIからのレスポンスの解析に失敗しました');
+        throw new Error('Gemini APIからのレスポンスの解析に失敗しました。ネットワーク接続を確認してください。');
     }
 
     // レスポンスからテキストを抽出
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
     } else {
-        throw new Error('Gemini APIからのレスポンスが不正です');
+        throw new Error('Gemini APIからのレスポンスが不正です。画像の内容を確認してください。');
     }
 }
 
@@ -685,11 +733,10 @@ function displayImportPreview(cards) {
                 displayImportPreview(extractedCards);
 
                 // カウントを更新
-                const statusDiv = document.getElementById('import-status');
                 if (extractedCards.length === 0) {
-                    statusDiv.textContent = 'すべてのカードが削除されました。';
+                    updateImportStatus('すべてのカードが削除されました。');
                 } else {
-                    statusDiv.textContent = `${extractedCards.length}件のカードを検出しました。確認して保存してください。`;
+                    updateImportStatus(`${extractedCards.length}件のカードを検出しました。確認して保存してください。`);
                 }
             }
         });
