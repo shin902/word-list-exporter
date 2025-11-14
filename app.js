@@ -10,7 +10,20 @@ function loadCards() {
 
 // Gemini API Keyの保存
 function saveApiKey(apiKey) {
-    localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+    try {
+        localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+        return true;
+    } catch (e) {
+        // QuotaExceededError または SecurityError をキャッチ
+        console.error('Failed to save API key to localStorage:', e);
+        if (e.name === 'QuotaExceededError') {
+            throw new Error('ストレージの容量が不足しています。ブラウザのデータを整理してください。');
+        } else if (e.name === 'SecurityError') {
+            throw new Error('プライベートブラウジングモードではAPI Keyを保存できません。');
+        } else {
+            throw new Error('API Keyの保存に失敗しました: ' + e.message);
+        }
+    }
 }
 
 // Gemini API Keyの読み込み
@@ -339,11 +352,15 @@ document.getElementById('save-settings-btn').addEventListener('click', () => {
         alert('API Keyの形式が正しくありません。20文字以上の英数字である必要があります。');
         return;
     }
-    saveApiKey(apiKey);
-    document.getElementById('settings-status').textContent = '設定を保存しました';
-    setTimeout(() => {
-        document.getElementById('settings-status').textContent = '';
-    }, 3000);
+    try {
+        saveApiKey(apiKey);
+        document.getElementById('settings-status').textContent = '設定を保存しました';
+        setTimeout(() => {
+            document.getElementById('settings-status').textContent = '';
+        }, 3000);
+    } catch (error) {
+        alert(error.message);
+    }
 });
 
 // 設定画面: API Keyクリアボタン
@@ -390,7 +407,11 @@ const GEMINI_API_CONFIG = {
 // インポート画面の初期化
 function initImportView() {
     showView('import-view');
-    selectedImage = null;
+    // メモリリーク防止のため既存の画像をクリア
+    if (selectedImage) {
+        selectedImage.src = '';
+        selectedImage = null;
+    }
     extractedCards = [];
     document.getElementById('import-category-input').value = '英単語';
     document.getElementById('image-input').value = '';
@@ -473,10 +494,12 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
     }
 
     const previewDiv = document.getElementById('import-preview');
+    const processBtn = document.getElementById('process-image-btn');
 
     updateImportStatus('画像を処理中...');
     previewDiv.innerHTML = '';
     isProcessingOCR = true;
+    processBtn.disabled = true; // レース条件防止のためボタンを無効化
 
     try {
         // 赤字部分を抽出
@@ -494,10 +517,23 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
         updateImportStatus('テキストを解析中...');
         extractedCards = parseTextToCards(text);
 
-        if (extractedCards.length === 0) {
+        if (!extractedCards || extractedCards.length === 0) {
             updateImportStatus('赤字のテキストが見つかりませんでした。別の画像を試してください。');
             return;
         }
+
+        // カードデータの妥当性チェック
+        const validCards = extractedCards.filter(card =>
+            card && card.question && card.answer && card.category
+        );
+
+        if (validCards.length === 0) {
+            updateImportStatus('有効なカードデータが見つかりませんでした。別の画像を試してください。');
+            extractedCards = [];
+            return;
+        }
+
+        extractedCards = validCards;
 
         // プレビューを表示
         displayImportPreview(extractedCards);
@@ -516,8 +552,12 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
     } catch (error) {
         console.error('処理エラー:', error);
         updateImportStatus('エラーが発生しました: ' + error.message);
+        // エラー時のクリーンアップ
+        previewDiv.innerHTML = '';
+        extractedCards = [];
     } finally {
         isProcessingOCR = false;
+        processBtn.disabled = false; // ボタンを再度有効化
     }
 });
 
@@ -644,10 +684,12 @@ async function performOCR(canvas) {
 
 // テキストを解析してカード配列を作成
 function parseTextToCards(text) {
-    const category = document.getElementById('import-category-input').value.trim() || '英単語';
+    // 入力をサニタイズ
+    const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
+    const category = sanitizeInput(categoryRaw);
     const cards = [];
     const lines = text.split('\n')
-        .map(line => line.trim())
+        .map(line => sanitizeInput(line))
         .filter(line => line.length > 0);
 
     for (let i = 0; i < lines.length; i++) {
@@ -720,7 +762,8 @@ function displayImportPreview(cards) {
         input.addEventListener('input', (e) => {
             const index = parseInt(e.target.dataset.index);
             const field = e.target.dataset.field;
-            extractedCards[index][field] = e.target.value;
+            // ユーザー入力をサニタイズ
+            extractedCards[index][field] = sanitizeInput(e.target.value);
         });
     });
 
@@ -748,6 +791,13 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// 入力サニタイゼーション関数
+function sanitizeInput(text) {
+    if (!text) return '';
+    // 制御文字を除去
+    return text.replace(/[\x00-\x1F\x7F]/g, '').trim();
 }
 
 // 抽出したカードを保存
