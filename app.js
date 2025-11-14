@@ -1,10 +1,21 @@
 // データ操作関数
 const STORAGE_KEY = 'MEMORY';
+const API_KEY_STORAGE_KEY = 'GEMINI_API_KEY';
 
 // ローカルストレージから単語カードを読み込む
 function loadCards() {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
+}
+
+// Gemini API Keyの保存
+function saveApiKey(apiKey) {
+    localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+}
+
+// Gemini API Keyの読み込み
+function loadApiKey() {
+    return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
 }
 
 // ローカルストレージに単語カードを保存
@@ -84,6 +95,11 @@ document.getElementById('start-quiz-btn').addEventListener('click', () => {
 // ホーム画面: 一覧表示ボタン
 document.getElementById('show-list-btn').addEventListener('click', () => {
     renderListView();
+});
+
+// ホーム画面: 設定ボタン
+document.getElementById('settings-btn').addEventListener('click', () => {
+    initSettingsView();
 });
 
 // 単語カード追加画面の初期化
@@ -277,6 +293,33 @@ document.getElementById('back-to-home-btn').addEventListener('click', () => {
     initHomeView();
 });
 
+// 設定画面の初期化
+function initSettingsView() {
+    showView('settings-view');
+    const apiKey = loadApiKey();
+    document.getElementById('gemini-api-key-input').value = apiKey;
+    document.getElementById('settings-status').textContent = '';
+}
+
+// 設定画面: 戻るボタン
+document.getElementById('back-from-settings-btn').addEventListener('click', () => {
+    initHomeView();
+});
+
+// 設定画面: 保存ボタン
+document.getElementById('save-settings-btn').addEventListener('click', () => {
+    const apiKey = document.getElementById('gemini-api-key-input').value.trim();
+    if (!apiKey) {
+        alert('API Keyを入力してください');
+        return;
+    }
+    saveApiKey(apiKey);
+    document.getElementById('settings-status').textContent = '設定を保存しました';
+    setTimeout(() => {
+        document.getElementById('settings-status').textContent = '';
+    }, 3000);
+});
+
 // 画像インポート機能
 let selectedImage = null;
 let extractedCards = [];
@@ -434,22 +477,57 @@ function extractRedText(img) {
     return canvas;
 }
 
-// OCRで文字認識
+// OCRで文字認識（Gemini Vision API使用）
 async function performOCR(canvas) {
-    const { data } = await Tesseract.recognize(
-        canvas,
-        'jpn+eng',
+    const apiKey = loadApiKey();
+    if (!apiKey) {
+        throw new Error('Gemini API Keyが設定されていません。設定画面から設定してください。');
+    }
+
+    // キャンバスをbase64エンコード
+    const base64Image = canvas.toDataURL('image/png').split(',')[1];
+
+    // Gemini APIにリクエスト
+    document.getElementById('import-status').textContent = 'Gemini APIで画像を解析中...';
+
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
-            logger: m => {
-                if (m.status === 'recognizing text') {
-                    const progress = Math.round(m.progress * 100);
-                    document.getElementById('import-status').textContent =
-                        `OCR処理中... ${progress}%`;
-                }
-            }
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        {
+                            text: '画像から日本語と英語のテキストを抽出してください。単語の対訳形式のリストがあれば、そのまま出力してください。記号や矢印（→、:、-など）が含まれている場合はそのまま保持してください。'
+                        },
+                        {
+                            inline_data: {
+                                mime_type: 'image/png',
+                                data: base64Image
+                            }
+                        }
+                    ]
+                }]
+            })
         }
     );
-    return data.text;
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // レスポンスからテキストを抽出
+    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+        return data.candidates[0].content.parts[0].text;
+    } else {
+        throw new Error('Gemini APIからのレスポンスが不正です');
+    }
 }
 
 // テキストを解析してカード配列を作成
