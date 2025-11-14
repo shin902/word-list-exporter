@@ -46,7 +46,10 @@
         <div class="nav-bar">
             <button id="back-from-list-btn" class="nav-button">戻る</button>
             <h2 class="nav-title">一覧</h2>
-            <button id="add-from-list-btn" class="nav-button">追加</button>
+            <div class="nav-buttons-group">
+                <button id="import-from-list-btn" class="nav-button">インポート</button>
+                <button id="add-from-list-btn" class="nav-button">追加</button>
+            </div>
         </div>
         <div class="container">
             <div id="card-list"></div>
@@ -85,6 +88,34 @@
         </div>
     </div>
 
+    <!-- 画像インポート画面 -->
+    <div id="import-view" class="view hidden">
+        <div class="nav-bar">
+            <button id="cancel-import-btn" class="nav-button">キャンセル</button>
+            <h2 class="nav-title">画像インポート</h2>
+            <div class="nav-button"></div>
+        </div>
+        <div class="container">
+            <div class="form-group">
+                <label for="import-category-input">カテゴリ</label>
+                <input type="text" id="import-category-input" class="input-field" placeholder="例: 英単語" value="英単語">
+            </div>
+            <div class="form-group">
+                <label for="image-input">画像を選択</label>
+                <input type="file" id="image-input" accept="image/*" class="input-field" aria-label="画像ファイルを選択">
+            </div>
+            <div class="form-group">
+                <canvas id="preview-canvas" style="max-width: 100%; border: 1px solid #ccc; display: none;"></canvas>
+            </div>
+            <div class="form-group">
+                <button id="process-image-btn" class="primary-button" disabled>赤字を抽出してインポート</button>
+            </div>
+            <div id="import-status" class="import-status"></div>
+            <div id="import-preview" class="import-preview"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -200,6 +200,11 @@ document.getElementById('add-from-list-btn').addEventListener('click', () => {
     initAddView();
 });
 
+// 一覧画面: インポートボタン
+document.getElementById('import-from-list-btn').addEventListener('click', () => {
+    initImportView();
+});
+
 // 学習画面の変数
 let quizWordArray = [];
 let currentIndex = 0;
@@ -271,6 +276,302 @@ function showCompletionView() {
 document.getElementById('back-to-home-btn').addEventListener('click', () => {
     initHomeView();
 });
+
+// 画像インポート機能
+let selectedImage = null;
+let extractedCards = [];
+
+// 赤字検出の閾値設定
+const RED_DETECTION_THRESHOLD = {
+    darkRed: { r: 150, g: 100, b: 100 },
+    lightRed: { r: 180, ratio: 1.5 }
+};
+
+// インポート画面の初期化
+function initImportView() {
+    showView('import-view');
+    selectedImage = null;
+    extractedCards = [];
+    document.getElementById('import-category-input').value = '英単語';
+    document.getElementById('image-input').value = '';
+    document.getElementById('preview-canvas').style.display = 'none';
+    document.getElementById('process-image-btn').disabled = true;
+    document.getElementById('import-status').textContent = '';
+    document.getElementById('import-preview').innerHTML = '';
+}
+
+// インポート画面: キャンセルボタン
+document.getElementById('cancel-import-btn').addEventListener('click', () => {
+    renderListView();
+});
+
+// インポート画面: 画像選択
+document.getElementById('image-input').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            selectedImage = img;
+            displayImagePreview(img);
+            document.getElementById('process-image-btn').disabled = false;
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+// 画像プレビューを表示
+function displayImagePreview(img) {
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // キャンバスサイズを画像に合わせる（最大幅500px）
+    const maxWidth = 500;
+    const scale = Math.min(1, maxWidth / img.width);
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.style.display = 'block';
+}
+
+// 赤字を抽出してインポート
+document.getElementById('process-image-btn').addEventListener('click', async () => {
+    if (!selectedImage) return;
+
+    const statusDiv = document.getElementById('import-status');
+    const previewDiv = document.getElementById('import-preview');
+
+    statusDiv.textContent = '画像を処理中...';
+    previewDiv.innerHTML = '';
+
+    try {
+        // 赤字部分を抽出
+        statusDiv.textContent = '赤字を検出中...';
+        const redTextCanvas = extractRedText(selectedImage);
+
+        // OCRで文字認識
+        statusDiv.textContent = 'OCRで文字を認識中... (しばらくお待ちください)';
+        const text = await performOCR(redTextCanvas);
+
+        // テキストを解析してカードを作成
+        statusDiv.textContent = 'テキストを解析中...';
+        extractedCards = parseTextToCards(text);
+
+        if (extractedCards.length === 0) {
+            statusDiv.textContent = '赤字のテキストが見つかりませんでした。別の画像を試してください。';
+            return;
+        }
+
+        // プレビューを表示
+        displayImportPreview(extractedCards);
+        statusDiv.textContent = `${extractedCards.length}件のカードを検出しました。確認して保存してください。`;
+
+        // 保存ボタンを表示
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'primary-button';
+        saveBtn.textContent = 'すべて保存';
+        saveBtn.style.marginTop = '20px';
+        saveBtn.addEventListener('click', () => {
+            saveExtractedCards();
+        });
+        previewDiv.appendChild(saveBtn);
+
+    } catch (error) {
+        console.error('処理エラー:', error);
+        statusDiv.textContent = 'エラーが発生しました: ' + error.message;
+    }
+});
+
+// 赤字部分を抽出
+function extractRedText(img) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    // 赤い部分を白に、それ以外を黒に変換（反転マスク）
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // 赤字判定: R値が高く、G・B値が低い
+        // 濃い赤: RGB値の絶対的な閾値判定
+        // 薄い赤: R値が他の色成分より相対的に高いかを判定
+        const isDarkRed = r > RED_DETECTION_THRESHOLD.darkRed.r &&
+                          g < RED_DETECTION_THRESHOLD.darkRed.g &&
+                          b < RED_DETECTION_THRESHOLD.darkRed.b;
+        const isLightRed = r > RED_DETECTION_THRESHOLD.lightRed.r &&
+                           r > g * RED_DETECTION_THRESHOLD.lightRed.ratio &&
+                           r > b * RED_DETECTION_THRESHOLD.lightRed.ratio;
+        const isRed = isDarkRed || isLightRed;
+
+        if (isRed) {
+            // 赤字部分を黒に（OCR用）
+            data[i] = 0;
+            data[i + 1] = 0;
+            data[i + 2] = 0;
+            data[i + 3] = 255;
+        } else {
+            // それ以外を白に
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+            data[i + 3] = 255;
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return canvas;
+}
+
+// OCRで文字認識
+async function performOCR(canvas) {
+    const { data } = await Tesseract.recognize(
+        canvas,
+        'jpn+eng',
+        {
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    const progress = Math.round(m.progress * 100);
+                    document.getElementById('import-status').textContent =
+                        `OCR処理中... ${progress}%`;
+                }
+            }
+        }
+    );
+    return data.text;
+}
+
+// テキストを解析してカード配列を作成
+function parseTextToCards(text) {
+    const category = document.getElementById('import-category-input').value.trim() || '英単語';
+    const cards = [];
+    const lines = text.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // パターン1: 矢印や記号で区切られている場合（→ : - など）
+        const separators = /[→:：\-－]/;
+        if (separators.test(line)) {
+            const parts = line.split(separators).map(p => p.trim()).filter(p => p.length > 0);
+            if (parts.length >= 2) {
+                cards.push({
+                    category: category,
+                    question: parts[0],
+                    answer: parts.slice(1).join(' ')
+                });
+                continue;
+            }
+        }
+
+        // パターン2: スペース、タブで区切られた「問題 答え」形式
+        const parts = line.split(/[\s\t]+/).filter(p => p.length > 0);
+        if (parts.length >= 2) {
+            cards.push({
+                category: category,
+                question: parts[0],
+                answer: parts.slice(1).join(' ')
+            });
+        } else if (parts.length === 1 && i + 1 < lines.length) {
+            // パターン3: 単一の単語の場合、次の行と組み合わせる
+            const nextLine = lines[i + 1];
+            const nextParts = nextLine.split(/[\s\t]+/).filter(p => p.length > 0);
+            if (nextParts.length === 1) {
+                cards.push({
+                    category: category,
+                    question: parts[0],
+                    answer: nextParts[0]
+                });
+                i++; // 次の行をスキップ
+            }
+        }
+    }
+
+    return cards;
+}
+
+// インポートプレビューを表示（編集機能付き）
+function displayImportPreview(cards) {
+    const previewDiv = document.getElementById('import-preview');
+    previewDiv.innerHTML = '<h3 style="margin-bottom: 15px; color: #333;">検出されたカード（編集可能）:</h3>';
+
+    cards.forEach((card, index) => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'preview-card';
+        cardDiv.innerHTML = `
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">問題:</label>
+                <input type="text" class="preview-input" data-index="${index}" data-field="question" value="${escapeHtml(card.question)}">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">答え:</label>
+                <input type="text" class="preview-input" data-index="${index}" data-field="answer" value="${escapeHtml(card.answer)}">
+            </div>
+            <button class="delete-preview-btn" data-index="${index}" style="background-color: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">削除</button>
+        `;
+        previewDiv.appendChild(cardDiv);
+    });
+
+    // 編集イベントリスナー
+    document.querySelectorAll('.preview-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            extractedCards[index][field] = e.target.value;
+        });
+    });
+
+    // 削除イベントリスナー
+    document.querySelectorAll('.delete-preview-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            if (confirm('このカードを削除しますか？')) {
+                extractedCards.splice(index, 1);
+                displayImportPreview(extractedCards);
+
+                // カウントを更新
+                const statusDiv = document.getElementById('import-status');
+                if (extractedCards.length === 0) {
+                    statusDiv.textContent = 'すべてのカードが削除されました。';
+                } else {
+                    statusDiv.textContent = `${extractedCards.length}件のカードを検出しました。確認して保存してください。`;
+                }
+            }
+        });
+    });
+}
+
+// HTMLエスケープ関数（XSS対策）
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 抽出したカードを保存
+function saveExtractedCards() {
+    const cards = loadCards();
+    extractedCards.forEach(card => {
+        cards.push(card);
+    });
+    saveCards(cards);
+
+    alert(`${extractedCards.length}件のカードをインポートしました`);
+    renderListView();
+}
 
 // アプリケーションの初期化
 document.addEventListener('DOMContentLoaded', () => {
