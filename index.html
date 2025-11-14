@@ -97,8 +97,12 @@
         </div>
         <div class="container">
             <div class="form-group">
+                <label for="import-category-input">カテゴリ</label>
+                <input type="text" id="import-category-input" class="input-field" placeholder="例: 英単語" value="英単語">
+            </div>
+            <div class="form-group">
                 <label for="image-input">画像を選択</label>
-                <input type="file" id="image-input" accept="image/*" class="input-field">
+                <input type="file" id="image-input" accept="image/*" class="input-field" aria-label="画像ファイルを選択">
             </div>
             <div class="form-group">
                 <canvas id="preview-canvas" style="max-width: 100%; border: 1px solid #ccc; display: none;"></canvas>

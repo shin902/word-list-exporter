@@ -281,11 +281,18 @@ document.getElementById('back-to-home-btn').addEventListener('click', () => {
 let selectedImage = null;
 let extractedCards = [];
 
+// 赤字検出の閾値設定
+const RED_DETECTION_THRESHOLD = {
+    darkRed: { r: 150, g: 100, b: 100 },
+    lightRed: { r: 180, ratio: 1.5 }
+};
+
 // インポート画面の初期化
 function initImportView() {
     showView('import-view');
     selectedImage = null;
     extractedCards = [];
+    document.getElementById('import-category-input').value = '英単語';
     document.getElementById('image-input').value = '';
     document.getElementById('preview-canvas').style.display = 'none';
     document.getElementById('process-image-btn').disabled = true;
@@ -398,8 +405,15 @@ function extractRedText(img) {
         const b = data[i + 2];
 
         // 赤字判定: R値が高く、G・B値が低い
-        const isRed = (r > 150 && g < 100 && b < 100) || // 濃い赤
-                      (r > 180 && r > g * 1.5 && r > b * 1.5); // 薄い赤
+        // 濃い赤: RGB値の絶対的な閾値判定
+        // 薄い赤: R値が他の色成分より相対的に高いかを判定
+        const isDarkRed = r > RED_DETECTION_THRESHOLD.darkRed.r &&
+                          g < RED_DETECTION_THRESHOLD.darkRed.g &&
+                          b < RED_DETECTION_THRESHOLD.darkRed.b;
+        const isLightRed = r > RED_DETECTION_THRESHOLD.lightRed.r &&
+                           r > g * RED_DETECTION_THRESHOLD.lightRed.ratio &&
+                           r > b * RED_DETECTION_THRESHOLD.lightRed.ratio;
+        const isRed = isDarkRed || isLightRed;
 
         if (isRed) {
             // 赤字部分を黒に（OCR用）
@@ -440,49 +454,111 @@ async function performOCR(canvas) {
 
 // テキストを解析してカード配列を作成
 function parseTextToCards(text) {
+    const category = document.getElementById('import-category-input').value.trim() || '英単語';
     const cards = [];
     const lines = text.split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
 
-    for (const line of lines) {
-        // パターン1: スペース、タブ、または複数の空白で区切られた「問題 答え」形式
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // パターン1: 矢印や記号で区切られている場合（→ : - など）
+        const separators = /[→:：\-－]/;
+        if (separators.test(line)) {
+            const parts = line.split(separators).map(p => p.trim()).filter(p => p.length > 0);
+            if (parts.length >= 2) {
+                cards.push({
+                    category: category,
+                    question: parts[0],
+                    answer: parts.slice(1).join(' ')
+                });
+                continue;
+            }
+        }
+
+        // パターン2: スペース、タブで区切られた「問題 答え」形式
         const parts = line.split(/[\s\t]+/).filter(p => p.length > 0);
-
         if (parts.length >= 2) {
-            // 最初の部分を問題、残りを答えとする
-            const question = parts[0];
-            const answer = parts.slice(1).join(' ');
-
             cards.push({
-                category: '英単語',
-                question: question,
-                answer: answer
+                category: category,
+                question: parts[0],
+                answer: parts.slice(1).join(' ')
             });
-        } else if (parts.length === 1) {
-            // 単一の単語の場合、次の行と組み合わせる処理は
-            // より高度なパースが必要なため、ここではスキップ
-            // （必要に応じて後で実装）
+        } else if (parts.length === 1 && i + 1 < lines.length) {
+            // パターン3: 単一の単語の場合、次の行と組み合わせる
+            const nextLine = lines[i + 1];
+            const nextParts = nextLine.split(/[\s\t]+/).filter(p => p.length > 0);
+            if (nextParts.length === 1) {
+                cards.push({
+                    category: category,
+                    question: parts[0],
+                    answer: nextParts[0]
+                });
+                i++; // 次の行をスキップ
+            }
         }
     }
 
     return cards;
 }
 
-// インポートプレビューを表示
+// インポートプレビューを表示（編集機能付き）
 function displayImportPreview(cards) {
     const previewDiv = document.getElementById('import-preview');
-    previewDiv.innerHTML = '<h3 style="margin-bottom: 15px; color: #333;">検出されたカード:</h3>';
+    previewDiv.innerHTML = '<h3 style="margin-bottom: 15px; color: #333;">検出されたカード（編集可能）:</h3>';
 
     cards.forEach((card, index) => {
         const cardDiv = document.createElement('div');
         cardDiv.className = 'preview-card';
         cardDiv.innerHTML = `
-            <div><strong>問題:</strong> ${card.question}</div>
-            <div><strong>答え:</strong> ${card.answer}</div>
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">問題:</label>
+                <input type="text" class="preview-input" data-index="${index}" data-field="question" value="${escapeHtml(card.question)}">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">答え:</label>
+                <input type="text" class="preview-input" data-index="${index}" data-field="answer" value="${escapeHtml(card.answer)}">
+            </div>
+            <button class="delete-preview-btn" data-index="${index}" style="background-color: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">削除</button>
         `;
         previewDiv.appendChild(cardDiv);
     });
+
+    // 編集イベントリスナー
+    document.querySelectorAll('.preview-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            extractedCards[index][field] = e.target.value;
+        });
+    });
+
+    // 削除イベントリスナー
+    document.querySelectorAll('.delete-preview-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            if (confirm('このカードを削除しますか？')) {
+                extractedCards.splice(index, 1);
+                displayImportPreview(extractedCards);
+
+                // カウントを更新
+                const statusDiv = document.getElementById('import-status');
+                if (extractedCards.length === 0) {
+                    statusDiv.textContent = 'すべてのカードが削除されました。';
+                } else {
+                    statusDiv.textContent = `${extractedCards.length}件のカードを検出しました。確認して保存してください。`;
+                }
+            }
+        });
+    });
+}
+
+// HTMLエスケープ関数（XSS対策）
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // 抽出したカードを保存
