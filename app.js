@@ -18,6 +18,12 @@ function loadApiKey() {
     return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
 }
 
+// Gemini API Keyのバリデーション
+function validateApiKey(apiKey) {
+    // Gemini API keyは"AIza"で始まる39文字の文字列
+    return apiKey && apiKey.startsWith('AIza') && apiKey.length === 39;
+}
+
 // ローカルストレージに単語カードを保存
 function saveCards(cards) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
@@ -313,6 +319,10 @@ document.getElementById('save-settings-btn').addEventListener('click', () => {
         alert('API Keyを入力してください');
         return;
     }
+    if (!validateApiKey(apiKey)) {
+        alert('API Keyの形式が正しくありません。Gemini API Keyは"AIza"で始まる39文字の文字列です。');
+        return;
+    }
     saveApiKey(apiKey);
     document.getElementById('settings-status').textContent = '設定を保存しました';
     setTimeout(() => {
@@ -323,11 +333,19 @@ document.getElementById('save-settings-btn').addEventListener('click', () => {
 // 画像インポート機能
 let selectedImage = null;
 let extractedCards = [];
+let isProcessingOCR = false; // OCR処理中フラグ
 
 // 赤字検出の閾値設定
 const RED_DETECTION_THRESHOLD = {
     darkRed: { r: 150, g: 100, b: 100 },
     lightRed: { r: 180, ratio: 1.5 }
+};
+
+// Gemini API設定
+const GEMINI_API_CONFIG = {
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    maxImageSize: 1024, // 最大画像サイズ（幅・高さ）
+    prompt: '画像から日本語と英語のテキストを抽出してください。単語の対訳形式のリストがあれば、そのまま出力してください。記号や矢印（→、:、-など）が含まれている場合はそのまま保持してください。'
 };
 
 // インポート画面の初期化
@@ -381,24 +399,58 @@ function displayImagePreview(img) {
     canvas.style.display = 'block';
 }
 
+// 画像をリサイズする関数
+function resizeCanvas(sourceCanvas, maxSize) {
+    const width = sourceCanvas.width;
+    const height = sourceCanvas.height;
+
+    // 既に小さい場合はそのまま返す
+    if (width <= maxSize && height <= maxSize) {
+        return sourceCanvas;
+    }
+
+    // アスペクト比を維持してリサイズ
+    const scale = Math.min(maxSize / width, maxSize / height);
+    const newWidth = Math.floor(width * scale);
+    const newHeight = Math.floor(height * scale);
+
+    const resizedCanvas = document.createElement('canvas');
+    resizedCanvas.width = newWidth;
+    resizedCanvas.height = newHeight;
+
+    const ctx = resizedCanvas.getContext('2d');
+    ctx.drawImage(sourceCanvas, 0, 0, newWidth, newHeight);
+
+    return resizedCanvas;
+}
+
 // 赤字を抽出してインポート
 document.getElementById('process-image-btn').addEventListener('click', async () => {
     if (!selectedImage) return;
+
+    // 既に処理中の場合は無視
+    if (isProcessingOCR) {
+        return;
+    }
 
     const statusDiv = document.getElementById('import-status');
     const previewDiv = document.getElementById('import-preview');
 
     statusDiv.textContent = '画像を処理中...';
     previewDiv.innerHTML = '';
+    isProcessingOCR = true;
 
     try {
         // 赤字部分を抽出
         statusDiv.textContent = '赤字を検出中...';
         const redTextCanvas = extractRedText(selectedImage);
 
+        // 画像をリサイズ
+        const resizedCanvas = resizeCanvas(redTextCanvas, GEMINI_API_CONFIG.maxImageSize);
+
         // OCRで文字認識
         statusDiv.textContent = 'OCRで文字を認識中... (しばらくお待ちください)';
-        const text = await performOCR(redTextCanvas);
+        const text = await performOCR(resizedCanvas);
 
         // テキストを解析してカードを作成
         statusDiv.textContent = 'テキストを解析中...';
@@ -426,6 +478,8 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
     } catch (error) {
         console.error('処理エラー:', error);
         statusDiv.textContent = 'エラーが発生しました: ' + error.message;
+    } finally {
+        isProcessingOCR = false;
     }
 });
 
@@ -490,37 +544,47 @@ async function performOCR(canvas) {
     // Gemini APIにリクエスト
     document.getElementById('import-status').textContent = 'Gemini APIで画像を解析中...';
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        {
-                            text: '画像から日本語と英語のテキストを抽出してください。単語の対訳形式のリストがあれば、そのまま出力してください。記号や矢印（→、:、-など）が含まれている場合はそのまま保持してください。'
-                        },
-                        {
-                            inline_data: {
-                                mime_type: 'image/png',
-                                data: base64Image
-                            }
+    const response = await fetch(GEMINI_API_CONFIG.endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey  // セキュリティ向上: URLではなくヘッダーでAPI keyを送信
+        },
+        body: JSON.stringify({
+            contents: [{
+                parts: [
+                    {
+                        text: GEMINI_API_CONFIG.prompt
+                    },
+                    {
+                        inline_data: {
+                            mime_type: 'image/png',
+                            data: base64Image
                         }
-                    ]
-                }]
-            })
-        }
-    );
+                    }
+                ]
+            }]
+        })
+    });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+        let errorMessage = response.statusText;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error?.message || errorMessage;
+        } catch (e) {
+            // JSONパースエラーは無視してstatusTextを使用
+            console.error('Failed to parse error response:', e);
+        }
+        throw new Error(`Gemini API error: ${errorMessage}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+        data = await response.json();
+    } catch (e) {
+        throw new Error('Gemini APIからのレスポンスの解析に失敗しました');
+    }
 
     // レスポンスからテキストを抽出
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
