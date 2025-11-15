@@ -554,12 +554,26 @@ function updateImportStatus(message) {
     }
 }
 
-// 赤字検出の閾値設定
-// R値が高く、G・B値が低い場合に赤と判定
+/**
+ * 赤字検出の閾値設定
+ *
+ * これらの値は以下の原理に基づいて決定されています：
+ * - RGB色空間で赤色は R値が高く、G・B値が低い特徴を持つ
+ * - 教科書や参考書の赤字マーカーを想定し、実際の画像テストに基づいて調整
+ *
+ * darkRed (濃い赤の判定):
+ *   - R > 150: 赤成分が十分に強い（255段階の約60%）
+ *   - G < 100, B < 100: 緑と青の成分が抑えられている
+ *   - 用途: ボールペンやマーカーで書かれた濃い赤字
+ *
+ * lightRed (薄い赤・ピンクの判定):
+ *   - R > 180: 赤成分がさらに強い（約70%以上）
+ *   - R > G×1.5, R > B×1.5: 相対的に赤が他の色より1.5倍強い
+ *   - 用途: 蛍光ペンや薄めの赤字、背景が白に近い場合の赤文字
+ *   - 比率ベース判定により、明るさの影響を軽減
+ */
 const RED_DETECTION_THRESHOLD = {
-    // 濃い赤の判定: R > 150 AND G < 100 AND B < 100
     darkRed: { r: 150, g: 100, b: 100 },
-    // 薄い赤の判定: R > 180 AND R > G×1.5 AND R > B×1.5
     lightRed: { r: 180, ratio: 1.5 }
 };
 
@@ -657,13 +671,14 @@ function resizeCanvas(sourceCanvas, maxSize) {
 document.getElementById('process-image-btn').addEventListener('click', async () => {
     if (!selectedImage) return;
 
-    // レース条件防止: 最初にフラグをチェック
-    if (isProcessingOCR) return;
-
     const processBtn = document.getElementById('process-image-btn');
     const previewDiv = document.getElementById('import-preview');
 
-    // フラグとボタンを設定
+    // レース条件防止: フラグチェックとボタン無効化をアトミックに実行
+    // ボタンが既に無効化されている場合は処理中と判断
+    if (processBtn.disabled || isProcessingOCR) return;
+
+    // フラグとボタンを即座に設定（これより先は1つの実行のみ）
     isProcessingOCR = true;
     processBtn.disabled = true;
 
@@ -873,23 +888,34 @@ async function performOCR(canvas) {
     }
 
     // レスポンスからテキストを抽出
-    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-        const extractedText = data.candidates[0].content.parts[0].text;
-
-        // レスポンス内容のバリデーション
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('APIから空のレスポンスが返されました。画像に認識可能なテキストがあるか確認してください。');
-        }
-
-        // 異常に大きなレスポンスをチェック（100KB以上）
-        if (extractedText.length > 100000) {
-            throw new Error('レスポンスが大きすぎます。画像サイズを小さくしてください。');
-        }
-
-        return extractedText;
-    } else {
-        throw new Error('Gemini APIからのレスポンスが不正です。画像の内容を確認してください。');
+    // レスポンス構造の詳細バリデーション
+    if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
+        throw new Error('Gemini APIからのレスポンスが不正です（candidates配列が存在しません）。画像の内容を確認してください。');
     }
+
+    const candidate = data.candidates[0];
+    if (!candidate?.content?.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
+        throw new Error('Gemini APIからのレスポンスが不正です（parts配列が存在しません）。画像の内容を確認してください。');
+    }
+
+    const textPart = candidate.content.parts[0];
+    if (!textPart?.text || typeof textPart.text !== 'string') {
+        throw new Error('Gemini APIからのレスポンスが不正です（テキストデータが存在しません）。画像の内容を確認してください。');
+    }
+
+    const extractedText = textPart.text;
+
+    // レスポンス内容のバリデーション
+    if (extractedText.trim().length === 0) {
+        throw new Error('APIから空のレスポンスが返されました。画像に認識可能なテキストがあるか確認してください。');
+    }
+
+    // 異常に大きなレスポンスをチェック（100KB以上）
+    if (extractedText.length > MAX_IMPORT_TEXT_LENGTH) {
+        throw new Error('レスポンスが大きすぎます。画像サイズを小さくしてください。');
+    }
+
+    return extractedText;
 }
 
 /**

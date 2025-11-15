@@ -42,7 +42,9 @@ npm run test:coverage
 
 ### Unit Tests (`tests/unit/`)
 
-- **validation.test.js** - バリデーション関数のテスト
+単体テスト - 個別の関数やメソッドの動作を検証
+
+- **validation.test.js** (50+ テスト) - バリデーション関数のテスト
   - `validateApiKey()` - API Keyの検証
   - `sanitizeInput()` - 入力のサニタイゼーション
   - `escapeHtml()` - HTMLエスケープ
@@ -50,10 +52,28 @@ npm run test:coverage
   - `parseSubscriptSuperscript()` - 上付き・下付き文字変換
   - `debounce()` - デバウンス関数
 
-- **parsing.test.js** - パース関数とデータ操作のテスト
+- **parsing.test.js** (35+ テスト) - パース関数とデータ操作のテスト
   - `parseTextToCards()` - テキストからカードへの変換
   - `loadCards()` - カードの読み込みと移行
   - `deleteCard()` - カードの削除
+
+### Integration Tests (`tests/integration/`)
+
+統合テスト - 複数のコンポーネントが連携する動作を検証
+
+- **ocr-workflow.test.js** (20+ テスト) - OCRワークフローの統合テスト
+  - 画像からカード生成までの完全なフロー
+  - Gemini API連携のテスト（モック使用）
+  - エラーハンドリング（レート制限、認証エラー、ネットワークエラー）
+  - APIレスポンス形式の詳細検証
+  - リクエストフォーマットの検証
+
+- **migration.test.js** (15+ テスト) - データ移行の統合テスト
+  - レガシーカード（ID未設定）の自動移行
+  - ID-based削除への移行
+  - 混在データ（レガシー + 新形式）のハンドリング
+  - データ破損時の復旧
+  - 大規模データセットの移行性能テスト
 
 ## テスト実行環境
 
