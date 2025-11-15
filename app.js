@@ -52,20 +52,22 @@ function clearApiKey() {
 
 // Gemini API Keyのバリデーション
 function validateApiKey(apiKey) {
-    // Gemini API keyは通常"AIza"で始まる39文字の文字列
-    // ただし、将来的に形式が変わる可能性があるため、柔軟なバリデーション
     if (!apiKey) return false;
+
+    // APIキーは英数字、ハイフン、アンダースコアのみ許可
+    const validFormat = /^[A-Za-z0-9_-]{20,}$/;
+    if (!validFormat.test(apiKey)) return false;
 
     // 最低限の長さチェック（20文字以上）
     if (apiKey.length < 20) return false;
 
-    // "AIza"で始まる場合は柔軟な長さチェック（30-50文字）
+    // Gemini API keyの既知の形式: "AIza"で始まる39文字
     if (apiKey.startsWith('AIza')) {
-        return apiKey.length >= 30 && apiKey.length <= 50;
+        return apiKey.length === 39; // 厳密に39文字
     }
 
-    // 他の形式も許可（将来の形式変更に対応）
-    return apiKey.length >= 20;
+    // 将来の形式変更に対応: 20-100文字
+    return apiKey.length >= 20 && apiKey.length <= 100;
 }
 
 // ローカルストレージに単語カードを保存
@@ -79,7 +81,12 @@ function saveCards(cards) {
 
 // 新規カードを作成
 function createCard(category, question, answer) {
-    const card = { category, question, answer };
+    const card = {
+        id: Date.now() + Math.random(), // ユニークIDを生成
+        category,
+        question,
+        answer
+    };
     const cards = loadCards();
     cards.push(card);
     saveCards(cards);
@@ -269,12 +276,14 @@ function renderListView() {
                 deleteBtn.addEventListener('click', () => {
                     if (confirm('この単語カードを削除しますか?')) {
                         try {
-                            // 削除時に最新のカードリストを取得して正しいインデックスを見つける
+                            // IDベースで削除（重複カード問題を解決）
                             const currentCards = loadCards();
                             const currentIndex = currentCards.findIndex(c =>
-                                c.category === card.category &&
-                                c.question === card.question &&
-                                c.answer === card.answer
+                                c.id ? c.id === card.id : (
+                                    c.category === card.category &&
+                                    c.question === card.question &&
+                                    c.answer === card.answer
+                                )
                             );
                             if (currentIndex !== -1) {
                                 deleteCard(currentIndex);
@@ -398,13 +407,16 @@ document.getElementById('back-from-settings-btn').addEventListener('click', () =
 
 // 設定画面: 保存ボタン
 document.getElementById('save-settings-btn').addEventListener('click', () => {
-    const apiKey = document.getElementById('gemini-api-key-input').value.trim();
+    const apiKeyRaw = document.getElementById('gemini-api-key-input').value.trim();
+    // セキュリティ: まず入力をサニタイズ
+    const apiKey = sanitizeInput(apiKeyRaw, 100);
+
     if (!apiKey) {
         alert('API Keyを入力してください');
         return;
     }
     if (!validateApiKey(apiKey)) {
-        alert('API Keyの形式が正しくありません。20文字以上の英数字である必要があります。');
+        alert('API Keyの形式が正しくありません。有効なGemini API Keyを入力してください。');
         return;
     }
     try {
@@ -773,12 +785,13 @@ async function performOCR(canvas) {
 
 // テキストを解析してカード配列を作成
 function parseTextToCards(text) {
-    // 入力をサニタイズ
+    // 入力をサニタイズ（テキスト全体を一度だけ）
     const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
     const category = sanitizeInput(categoryRaw);
+    const sanitizedText = sanitizeInput(text, 100000); // 大きめの制限でテキスト全体をサニタイズ
     const cards = [];
-    const lines = text.split('\n')
-        .map(line => sanitizeInput(line))
+    const lines = sanitizedText.split('\n')
+        .map(line => line.trim()) // トリムのみ（既にサニタイズ済み）
         .filter(line => line.length > 0);
 
     for (let i = 0; i < lines.length; i++) {
@@ -788,13 +801,14 @@ function parseTextToCards(text) {
         const separators = /[→:：\-－]/;
         if (separators.test(line)) {
             const parts = line.split(separators)
-                .map(p => sanitizeInput(p))
+                .map(p => p.trim()) // トリムのみ
                 .filter(p => p.length > 0);
             if (parts.length >= 2) {
                 cards.push({
+                    id: Date.now() + Math.random(), // ユニークID
                     category: category,
-                    question: sanitizeInput(parts[0]),
-                    answer: sanitizeInput(parts.slice(1).join(' '))
+                    question: parts[0],
+                    answer: parts.slice(1).join(' ')
                 });
                 continue;
             }
@@ -802,25 +816,27 @@ function parseTextToCards(text) {
 
         // パターン2: スペース、タブで区切られた「問題 答え」形式
         const parts = line.split(/[\s\t]+/)
-            .map(p => sanitizeInput(p))
+            .map(p => p.trim()) // トリムのみ
             .filter(p => p.length > 0);
         if (parts.length >= 2) {
             cards.push({
+                id: Date.now() + Math.random(), // ユニークID
                 category: category,
-                question: sanitizeInput(parts[0]),
-                answer: sanitizeInput(parts.slice(1).join(' '))
+                question: parts[0],
+                answer: parts.slice(1).join(' ')
             });
         } else if (parts.length === 1 && i + 1 < lines.length) {
             // パターン3: 単一の単語の場合、次の行と組み合わせる
             const nextLine = lines[i + 1];
             const nextParts = nextLine.split(/[\s\t]+/)
-                .map(p => sanitizeInput(p))
+                .map(p => p.trim()) // トリムのみ
                 .filter(p => p.length > 0);
             if (nextParts.length === 1) {
                 cards.push({
+                    id: Date.now() + Math.random(), // ユニークID
                     category: category,
-                    question: sanitizeInput(parts[0]),
-                    answer: sanitizeInput(nextParts[0])
+                    question: parts[0],
+                    answer: nextParts[0]
                 });
                 i++; // 次の行をスキップ
             }
