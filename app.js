@@ -2,6 +2,18 @@
 const STORAGE_KEY = 'MEMORY';
 const API_KEY_STORAGE_KEY = 'GEMINI_API_KEY';
 
+// localStorageエラーハンドリングヘルパー関数
+function handleStorageError(e, context) {
+    console.error(`Failed to save ${context} to localStorage:`, e);
+    if (e.name === 'QuotaExceededError') {
+        throw new Error('ストレージの容量が不足しています。ブラウザのデータを整理してください。');
+    } else if (e.name === 'SecurityError') {
+        throw new Error('プライベートブラウジングモードでは保存できません。');
+    } else {
+        throw new Error(`${context}の保存に失敗しました: ` + e.message);
+    }
+}
+
 // ローカルストレージから単語カードを読み込む
 function loadCards() {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -24,15 +36,7 @@ function saveApiKey(apiKey) {
         localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
         return true;
     } catch (e) {
-        // QuotaExceededError または SecurityError をキャッチ
-        console.error('Failed to save API key to localStorage:', e);
-        if (e.name === 'QuotaExceededError') {
-            throw new Error('ストレージの容量が不足しています。ブラウザのデータを整理してください。');
-        } else if (e.name === 'SecurityError') {
-            throw new Error('プライベートブラウジングモードではAPI Keyを保存できません。');
-        } else {
-            throw new Error('API Keyの保存に失敗しました: ' + e.message);
-        }
+        handleStorageError(e, 'API Key');
     }
 }
 
@@ -49,18 +53,19 @@ function clearApiKey() {
 // Gemini API Keyのバリデーション
 function validateApiKey(apiKey) {
     // Gemini API keyは通常"AIza"で始まる39文字の文字列
-    // ただし、将来的に形式が変わる可能性があるため、基本的な長さチェックのみ行う
+    // ただし、将来的に形式が変わる可能性があるため、柔軟なバリデーション
     if (!apiKey) return false;
 
     // 最低限の長さチェック（20文字以上）
     if (apiKey.length < 20) return false;
 
-    // "AIza"で始まる場合は39文字であることを確認（現在の標準形式）
-    if (apiKey.startsWith('AIza') && apiKey.length !== 39) {
-        return false;
+    // "AIza"で始まる場合は柔軟な長さチェック（30-50文字）
+    if (apiKey.startsWith('AIza')) {
+        return apiKey.length >= 30 && apiKey.length <= 50;
     }
 
-    return true;
+    // 他の形式も許可（将来の形式変更に対応）
+    return apiKey.length >= 20;
 }
 
 // ローカルストレージに単語カードを保存
@@ -68,14 +73,7 @@ function saveCards(cards) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
     } catch (e) {
-        console.error('Failed to save cards to localStorage:', e);
-        if (e.name === 'QuotaExceededError') {
-            throw new Error('ストレージの容量が不足しています。不要なデータを削除してください。');
-        } else if (e.name === 'SecurityError') {
-            throw new Error('プライベートブラウジングモードではデータを保存できません。');
-        } else {
-            throw new Error('データの保存に失敗しました: ' + e.message);
-        }
+        handleStorageError(e, 'カードデータ');
     }
 }
 
@@ -118,10 +116,12 @@ function escapeHtml(text) {
 }
 
 // 入力サニタイゼーション関数
-function sanitizeInput(text) {
+function sanitizeInput(text, maxLength = 1000) {
     if (!text) return '';
-    // 制御文字を除去
-    return text.replace(/[\x00-\x1F\x7F]/g, '').trim();
+    // 制御文字を除去し、最大長を制限
+    return text.replace(/[\x00-\x1F\x7F]/g, '')
+               .trim()
+               .substring(0, maxLength);
 }
 
 // 上付き・下付き文字を変換（XSS対策のため先にエスケープ）
@@ -546,30 +546,29 @@ function resizeCanvas(sourceCanvas, maxSize) {
 document.getElementById('process-image-btn').addEventListener('click', async () => {
     if (!selectedImage) return;
 
+    // レース条件防止: 最初にフラグをチェック
+    if (isProcessingOCR) return;
+
     const processBtn = document.getElementById('process-image-btn');
-
-    // レース条件防止: 最初にボタンを無効化
-    processBtn.disabled = true;
-
-    // 既に処理中の場合は無視
-    if (isProcessingOCR) {
-        processBtn.disabled = false;
-        return;
-    }
-
     const previewDiv = document.getElementById('import-preview');
+
+    // フラグとボタンを設定
+    isProcessingOCR = true;
+    processBtn.disabled = true;
 
     updateImportStatus('画像を処理中...');
     previewDiv.innerHTML = '';
-    isProcessingOCR = true;
+
+    let redTextCanvas = null;
+    let resizedCanvas = null;
 
     try {
         // 赤字部分を抽出
         updateImportStatus('赤字を検出中...');
-        const redTextCanvas = extractRedText(selectedImage);
+        redTextCanvas = extractRedText(selectedImage);
 
         // 画像をリサイズ
-        const resizedCanvas = resizeCanvas(redTextCanvas, GEMINI_API_CONFIG.maxImageSize);
+        resizedCanvas = resizeCanvas(redTextCanvas, GEMINI_API_CONFIG.maxImageSize);
 
         // OCRで文字認識
         updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
@@ -618,10 +617,26 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
         previewDiv.innerHTML = '';
         extractedCards = [];
     } finally {
+        // メモリリーク防止: Canvasをクリーンアップ
+        cleanupCanvas(redTextCanvas);
+        cleanupCanvas(resizedCanvas);
+
         isProcessingOCR = false;
         processBtn.disabled = false; // ボタンを再度有効化
     }
 });
+
+// Canvasクリーンアップヘルパー関数
+function cleanupCanvas(canvas) {
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        canvas.width = 0;
+        canvas.height = 0;
+    }
+}
 
 // 赤字部分を抽出
 function extractRedText(img) {
@@ -738,7 +753,19 @@ async function performOCR(canvas) {
 
     // レスポンスからテキストを抽出
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-        return data.candidates[0].content.parts[0].text;
+        const extractedText = data.candidates[0].content.parts[0].text;
+
+        // レスポンス内容のバリデーション
+        if (!extractedText || extractedText.trim().length === 0) {
+            throw new Error('APIから空のレスポンスが返されました。画像に認識可能なテキストがあるか確認してください。');
+        }
+
+        // 異常に大きなレスポンスをチェック（100KB以上）
+        if (extractedText.length > 100000) {
+            throw new Error('レスポンスが大きすぎます。画像サイズを小さくしてください。');
+        }
+
+        return extractedText;
     } else {
         throw new Error('Gemini APIからのレスポンスが不正です。画像の内容を確認してください。');
     }
