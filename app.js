@@ -1,8 +1,51 @@
 // データ操作関数
 const STORAGE_KEY = 'MEMORY';
 const API_KEY_STORAGE_KEY = 'GEMINI_API_KEY';
+const MAX_IMPORT_TEXT_LENGTH = 100000; // インポートテキストの最大長
 
-// localStorageエラーハンドリングヘルパー関数
+/**
+ * 衝突のないユニークIDを生成
+ * crypto.randomUUID()が利用可能な場合はそれを使用、
+ * それ以外の場合は高エントロピーのフォールバック方式を使用
+ * @returns {string} ユニークID
+ */
+function generateUniqueId() {
+    // crypto.randomUUID()が使用可能な場合
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    // フォールバック: タイムスタンプ + 高エントロピー乱数
+    const timestamp = Date.now().toString(36);
+    const randomPart1 = Math.random().toString(36).substring(2, 11);
+    const randomPart2 = Math.random().toString(36).substring(2, 11);
+    return `${timestamp}-${randomPart1}-${randomPart2}`;
+}
+
+/**
+ * デバウンス関数 - 連続した関数呼び出しを遅延させる
+ * @param {Function} func - デバウンスする関数
+ * @param {number} wait - 待機時間（ミリ秒）
+ * @returns {Function} デバウンスされた関数
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+/**
+ * localStorageエラーハンドリングヘルパー関数
+ * @param {Error} e - エラーオブジェクト
+ * @param {string} context - エラーコンテキスト
+ * @throws {Error} ユーザー向けエラーメッセージ
+ */
 function handleStorageError(e, context) {
     console.error(`Failed to save ${context} to localStorage:`, e);
     if (e.name === 'QuotaExceededError') {
@@ -14,7 +57,11 @@ function handleStorageError(e, context) {
     }
 }
 
-// ローカルストレージから単語カードを読み込む
+/**
+ * ローカルストレージから単語カードを読み込む
+ * レガシーカード（ID未設定）を自動的に移行
+ * @returns {Array} カード配列
+ */
 function loadCards() {
     const data = localStorage.getItem(STORAGE_KEY);
     if (!data) return [];
@@ -22,7 +69,33 @@ function loadCards() {
     try {
         const parsed = JSON.parse(data);
         // 配列であることを確認
-        return Array.isArray(parsed) ? parsed : [];
+        if (!Array.isArray(parsed)) return [];
+
+        // レガシーカード（IDがない）を移行
+        let needsMigration = false;
+        const migratedCards = parsed.map(card => {
+            if (!card.id) {
+                needsMigration = true;
+                return {
+                    ...card,
+                    id: generateUniqueId()
+                };
+            }
+            return card;
+        });
+
+        // 移行が必要な場合は保存
+        if (needsMigration) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(migratedCards));
+                console.log('レガシーカードを移行しました:', migratedCards.length);
+            } catch (e) {
+                console.error('カードの移行中にエラーが発生しました:', e);
+                // 移行失敗してもデータは返す
+            }
+        }
+
+        return migratedCards;
     } catch (e) {
         console.error('Failed to parse cards from localStorage:', e);
         // データが破損している場合は空配列を返す
@@ -50,7 +123,11 @@ function clearApiKey() {
     localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
-// Gemini API Keyのバリデーション
+/**
+ * Gemini API Keyのバリデーション
+ * @param {string} apiKey - 検証するAPIキー
+ * @returns {boolean} 有効な場合true
+ */
 function validateApiKey(apiKey) {
     if (!apiKey) return false;
 
@@ -79,10 +156,15 @@ function saveCards(cards) {
     }
 }
 
-// 新規カードを作成
+/**
+ * 新規カードを作成
+ * @param {string} category - カテゴリ名
+ * @param {string} question - 問題文
+ * @param {string} answer - 解答
+ */
 function createCard(category, question, answer) {
     const card = {
-        id: Date.now() + Math.random(), // ユニークIDを生成
+        id: generateUniqueId(),
         category,
         question,
         answer
@@ -92,10 +174,24 @@ function createCard(category, question, answer) {
     saveCards(cards);
 }
 
-// カードを削除
-function deleteCard(index) {
+/**
+ * カードをIDで削除（インデックスベースの削除はレガシーサポート）
+ * @param {string|number} idOrIndex - カードIDまたはインデックス
+ */
+function deleteCard(idOrIndex) {
     const cards = loadCards();
-    cards.splice(index, 1);
+
+    // 数値の場合はインデックスとして扱う（レガシーサポート）
+    if (typeof idOrIndex === 'number') {
+        cards.splice(idOrIndex, 1);
+    } else {
+        // IDで削除
+        const index = cards.findIndex(c => c.id === idOrIndex);
+        if (index !== -1) {
+            cards.splice(index, 1);
+        }
+    }
+
     saveCards(cards);
 }
 
@@ -115,14 +211,23 @@ function getCategories() {
     return [...new Set(cards.map(card => card.category))].sort();
 }
 
-// HTMLエスケープ関数（XSS対策）
+/**
+ * HTMLエスケープ関数（XSS対策）
+ * @param {string} text - エスケープするテキスト
+ * @returns {string} エスケープされたHTML
+ */
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// 入力サニタイゼーション関数
+/**
+ * 入力サニタイゼーション関数
+ * @param {string} text - サニタイズするテキスト
+ * @param {number} maxLength - 最大文字数（デフォルト: 1000）
+ * @returns {string} サニタイズされたテキスト
+ */
 function sanitizeInput(text, maxLength = 1000) {
     if (!text) return '';
     // 制御文字を除去し、最大長を制限
@@ -131,7 +236,11 @@ function sanitizeInput(text, maxLength = 1000) {
                .substring(0, maxLength);
 }
 
-// 上付き・下付き文字を変換（XSS対策のため先にエスケープ）
+/**
+ * 上付き・下付き文字を変換（XSS対策のため先にエスケープ）
+ * @param {string} text - 変換するテキスト
+ * @returns {string} 変換されたHTML
+ */
 function parseSubscriptSuperscript(text) {
     // まずHTMLエスケープしてXSS攻撃を防ぐ
     text = escapeHtml(text);
@@ -276,19 +385,9 @@ function renderListView() {
                 deleteBtn.addEventListener('click', () => {
                     if (confirm('この単語カードを削除しますか?')) {
                         try {
-                            // IDベースで削除（重複カード問題を解決）
-                            const currentCards = loadCards();
-                            const currentIndex = currentCards.findIndex(c =>
-                                c.id ? c.id === card.id : (
-                                    c.category === card.category &&
-                                    c.question === card.question &&
-                                    c.answer === card.answer
-                                )
-                            );
-                            if (currentIndex !== -1) {
-                                deleteCard(currentIndex);
-                                renderListView();
-                            }
+                            // IDベースで削除（移行により全カードにIDが設定済み）
+                            deleteCard(card.id);
+                            renderListView();
                         } catch (error) {
                             alert('削除に失敗しました: ' + error.message);
                         }
@@ -650,7 +749,12 @@ function cleanupCanvas(canvas) {
     }
 }
 
-// 赤字部分を抽出
+/**
+ * 赤字部分を抽出
+ * 画像から赤色のテキストのみを抽出し、OCR用のキャンバスを生成
+ * @param {HTMLImageElement} img - ソース画像
+ * @returns {HTMLCanvasElement} 赤字のみを含むキャンバス
+ */
 function extractRedText(img) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -698,7 +802,12 @@ function extractRedText(img) {
     return canvas;
 }
 
-// OCRで文字認識（Gemini Vision API使用）
+/**
+ * OCRで文字認識（Gemini Vision API使用）
+ * @param {HTMLCanvasElement} canvas - OCR対象のキャンバス
+ * @returns {Promise<string>} 抽出されたテキスト
+ * @throws {Error} APIキー未設定、ネットワークエラー、APIエラー
+ */
 async function performOCR(canvas) {
     const apiKey = loadApiKey();
     if (!apiKey) {
@@ -783,12 +892,16 @@ async function performOCR(canvas) {
     }
 }
 
-// テキストを解析してカード配列を作成
+/**
+ * テキストを解析してカード配列を作成
+ * @param {string} text - 解析するテキスト
+ * @returns {Array} カード配列
+ */
 function parseTextToCards(text) {
     // 入力をサニタイズ（テキスト全体を一度だけ）
     const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
     const category = sanitizeInput(categoryRaw);
-    const sanitizedText = sanitizeInput(text, 100000); // 大きめの制限でテキスト全体をサニタイズ
+    const sanitizedText = sanitizeInput(text, MAX_IMPORT_TEXT_LENGTH);
     const cards = [];
     const lines = sanitizedText.split('\n')
         .map(line => line.trim()) // トリムのみ（既にサニタイズ済み）
@@ -805,7 +918,7 @@ function parseTextToCards(text) {
                 .filter(p => p.length > 0);
             if (parts.length >= 2) {
                 cards.push({
-                    id: Date.now() + Math.random(), // ユニークID
+                    id: generateUniqueId(),
                     category: category,
                     question: parts[0],
                     answer: parts.slice(1).join(' ')
@@ -820,7 +933,7 @@ function parseTextToCards(text) {
             .filter(p => p.length > 0);
         if (parts.length >= 2) {
             cards.push({
-                id: Date.now() + Math.random(), // ユニークID
+                id: generateUniqueId(),
                 category: category,
                 question: parts[0],
                 answer: parts.slice(1).join(' ')
@@ -833,7 +946,7 @@ function parseTextToCards(text) {
                 .filter(p => p.length > 0);
             if (nextParts.length === 1) {
                 cards.push({
-                    id: Date.now() + Math.random(), // ユニークID
+                    id: generateUniqueId(),
                     category: category,
                     question: parts[0],
                     answer: nextParts[0]
@@ -846,7 +959,10 @@ function parseTextToCards(text) {
     return cards;
 }
 
-// インポートプレビューを表示（編集機能付き）
+/**
+ * インポートプレビューを表示（編集機能付き）
+ * @param {Array} cards - プレビューするカード配列
+ */
 function displayImportPreview(cards) {
     const previewDiv = document.getElementById('import-preview');
     previewDiv.innerHTML = '<h3 style="margin-bottom: 15px; color: #333;">検出されたカード（編集可能）:</h3>';
@@ -868,14 +984,14 @@ function displayImportPreview(cards) {
         previewDiv.appendChild(cardDiv);
     });
 
-    // 編集イベントリスナー
+    // 編集イベントリスナー（デバウンス適用で性能向上）
     document.querySelectorAll('.preview-input').forEach(input => {
-        input.addEventListener('input', (e) => {
+        input.addEventListener('input', debounce((e) => {
             const index = parseInt(e.target.dataset.index);
             const field = e.target.dataset.field;
             // ユーザー入力をサニタイズ
             extractedCards[index][field] = sanitizeInput(e.target.value);
-        });
+        }, 300));
     });
 
     // 削除イベントリスナー
