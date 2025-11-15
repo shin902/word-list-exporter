@@ -5,7 +5,17 @@ const API_KEY_STORAGE_KEY = 'GEMINI_API_KEY';
 // ローカルストレージから単語カードを読み込む
 function loadCards() {
     const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+
+    try {
+        const parsed = JSON.parse(data);
+        // 配列であることを確認
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        console.error('Failed to parse cards from localStorage:', e);
+        // データが破損している場合は空配列を返す
+        return [];
+    }
 }
 
 // Gemini API Keyの保存
@@ -409,10 +419,13 @@ function initImportView() {
     showView('import-view');
     // メモリリーク防止のため既存の画像をクリア
     if (selectedImage) {
+        selectedImage.onload = null; // イベントハンドラをクリア
+        selectedImage.onerror = null;
         selectedImage.src = '';
         selectedImage = null;
     }
     extractedCards = [];
+    isProcessingOCR = false; // 処理フラグもリセット
     document.getElementById('import-category-input').value = '英単語';
     document.getElementById('image-input').value = '';
     document.getElementById('preview-canvas').style.display = 'none';
@@ -488,18 +501,22 @@ function resizeCanvas(sourceCanvas, maxSize) {
 document.getElementById('process-image-btn').addEventListener('click', async () => {
     if (!selectedImage) return;
 
+    const processBtn = document.getElementById('process-image-btn');
+
+    // レース条件防止: 最初にボタンを無効化
+    processBtn.disabled = true;
+
     // 既に処理中の場合は無視
     if (isProcessingOCR) {
+        processBtn.disabled = false;
         return;
     }
 
     const previewDiv = document.getElementById('import-preview');
-    const processBtn = document.getElementById('process-image-btn');
 
     updateImportStatus('画像を処理中...');
     previewDiv.innerHTML = '';
     isProcessingOCR = true;
-    processBtn.disabled = true; // レース条件防止のためボタンを無効化
 
     try {
         // 赤字部分を抽出
@@ -698,34 +715,40 @@ function parseTextToCards(text) {
         // パターン1: 矢印や記号で区切られている場合（→ : - など）
         const separators = /[→:：\-－]/;
         if (separators.test(line)) {
-            const parts = line.split(separators).map(p => p.trim()).filter(p => p.length > 0);
+            const parts = line.split(separators)
+                .map(p => sanitizeInput(p))
+                .filter(p => p.length > 0);
             if (parts.length >= 2) {
                 cards.push({
                     category: category,
-                    question: parts[0],
-                    answer: parts.slice(1).join(' ')
+                    question: sanitizeInput(parts[0]),
+                    answer: sanitizeInput(parts.slice(1).join(' '))
                 });
                 continue;
             }
         }
 
         // パターン2: スペース、タブで区切られた「問題 答え」形式
-        const parts = line.split(/[\s\t]+/).filter(p => p.length > 0);
+        const parts = line.split(/[\s\t]+/)
+            .map(p => sanitizeInput(p))
+            .filter(p => p.length > 0);
         if (parts.length >= 2) {
             cards.push({
                 category: category,
-                question: parts[0],
-                answer: parts.slice(1).join(' ')
+                question: sanitizeInput(parts[0]),
+                answer: sanitizeInput(parts.slice(1).join(' '))
             });
         } else if (parts.length === 1 && i + 1 < lines.length) {
             // パターン3: 単一の単語の場合、次の行と組み合わせる
             const nextLine = lines[i + 1];
-            const nextParts = nextLine.split(/[\s\t]+/).filter(p => p.length > 0);
+            const nextParts = nextLine.split(/[\s\t]+/)
+                .map(p => sanitizeInput(p))
+                .filter(p => p.length > 0);
             if (nextParts.length === 1) {
                 cards.push({
                     category: category,
-                    question: parts[0],
-                    answer: nextParts[0]
+                    question: sanitizeInput(parts[0]),
+                    answer: sanitizeInput(nextParts[0])
                 });
                 i++; // 次の行をスキップ
             }
