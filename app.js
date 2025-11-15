@@ -65,7 +65,18 @@ function validateApiKey(apiKey) {
 
 // ローカルストレージに単語カードを保存
 function saveCards(cards) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+    } catch (e) {
+        console.error('Failed to save cards to localStorage:', e);
+        if (e.name === 'QuotaExceededError') {
+            throw new Error('ストレージの容量が不足しています。不要なデータを削除してください。');
+        } else if (e.name === 'SecurityError') {
+            throw new Error('プライベートブラウジングモードではデータを保存できません。');
+        } else {
+            throw new Error('データの保存に失敗しました: ' + e.message);
+        }
+    }
 }
 
 // 新規カードを作成
@@ -99,8 +110,25 @@ function getCategories() {
     return [...new Set(cards.map(card => card.category))].sort();
 }
 
-// 上付き・下付き文字を変換
+// HTMLエスケープ関数（XSS対策）
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 入力サニタイゼーション関数
+function sanitizeInput(text) {
+    if (!text) return '';
+    // 制御文字を除去
+    return text.replace(/[\x00-\x1F\x7F]/g, '').trim();
+}
+
+// 上付き・下付き文字を変換（XSS対策のため先にエスケープ）
 function parseSubscriptSuperscript(text) {
+    // まずHTMLエスケープしてXSS攻撃を防ぐ
+    text = escapeHtml(text);
+
     // 波括弧付き上付き文字: ^{text}
     text = text.replace(/\^\{([^}]+)\}/g, '<span class="superscript">$1</span>');
     // 単一文字上付き文字: ^x
@@ -175,16 +203,20 @@ document.getElementById('save-card-btn').addEventListener('click', () => {
     // カテゴリが空の場合はデフォルト値を設定
     const finalCategory = category || '未分類';
 
-    createCard(finalCategory, question, answer);
-    alert('保存しました');
+    try {
+        createCard(finalCategory, question, answer);
+        alert('保存しました');
 
-    // 入力欄をクリア
-    document.getElementById('category-input').value = '';
-    document.getElementById('question-input').value = '';
-    document.getElementById('answer-input').value = '';
+        // 入力欄をクリア
+        document.getElementById('category-input').value = '';
+        document.getElementById('question-input').value = '';
+        document.getElementById('answer-input').value = '';
 
-    // フォーカスをカテゴリ入力欄に戻す
-    document.getElementById('category-input').focus();
+        // フォーカスをカテゴリ入力欄に戻す
+        document.getElementById('category-input').focus();
+    } catch (error) {
+        alert('保存に失敗しました: ' + error.message);
+    }
 });
 
 // 単語カード一覧画面の表示
@@ -236,8 +268,21 @@ function renderListView() {
                 deleteBtn.textContent = '削除';
                 deleteBtn.addEventListener('click', () => {
                     if (confirm('この単語カードを削除しますか?')) {
-                        deleteCard(index);
-                        renderListView();
+                        try {
+                            // 削除時に最新のカードリストを取得して正しいインデックスを見つける
+                            const currentCards = loadCards();
+                            const currentIndex = currentCards.findIndex(c =>
+                                c.category === card.category &&
+                                c.question === card.question &&
+                                c.answer === card.answer
+                            );
+                            if (currentIndex !== -1) {
+                                deleteCard(currentIndex);
+                                renderListView();
+                            }
+                        } catch (error) {
+                            alert('削除に失敗しました: ' + error.message);
+                        }
                     }
                 });
 
@@ -809,30 +854,20 @@ function displayImportPreview(cards) {
     });
 }
 
-// HTMLエスケープ関数（XSS対策）
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// 入力サニタイゼーション関数
-function sanitizeInput(text) {
-    if (!text) return '';
-    // 制御文字を除去
-    return text.replace(/[\x00-\x1F\x7F]/g, '').trim();
-}
-
 // 抽出したカードを保存
 function saveExtractedCards() {
-    const cards = loadCards();
-    extractedCards.forEach(card => {
-        cards.push(card);
-    });
-    saveCards(cards);
+    try {
+        const cards = loadCards();
+        extractedCards.forEach(card => {
+            cards.push(card);
+        });
+        saveCards(cards);
 
-    alert(`${extractedCards.length}件のカードをインポートしました`);
-    renderListView();
+        alert(`${extractedCards.length}件のカードをインポートしました`);
+        renderListView();
+    } catch (error) {
+        alert('カードの保存に失敗しました: ' + error.message);
+    }
 }
 
 // アプリケーションの初期化
