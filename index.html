@@ -40,16 +40,16 @@
         </div>
         <div class="container">
             <div class="form-group">
-                <label for="category-input">カテゴリ</label>
-                <input type="text" id="category-input" class="input-field" placeholder="例: 英単語">
+                <label for="category-input">カテゴリ（最大50文字）</label>
+                <input type="text" id="category-input" class="input-field" placeholder="例: 英単語" maxlength="50" aria-label="カテゴリ名（最大50文字）">
             </div>
             <div class="form-group">
-                <label for="question-input">問題</label>
-                <textarea id="question-input" class="input-field" rows="4" placeholder="例: apple"></textarea>
+                <label for="question-input">問題（最大50文字）</label>
+                <textarea id="question-input" class="input-field" rows="4" placeholder="例: apple" maxlength="50" aria-label="問題文（最大50文字）"></textarea>
             </div>
             <div class="form-group">
-                <label for="answer-input">解答</label>
-                <textarea id="answer-input" class="input-field" rows="4" placeholder="例: りんご"></textarea>
+                <label for="answer-input">解答（最大50文字）</label>
+                <textarea id="answer-input" class="input-field" rows="4" placeholder="例: りんご" maxlength="50" aria-label="解答（最大50文字）"></textarea>
             </div>
         </div>
     </div>
@@ -110,8 +110,8 @@
         </div>
         <div class="container">
             <div class="form-group">
-                <label for="import-category-input">カテゴリ</label>
-                <input type="text" id="import-category-input" class="input-field" placeholder="例: 英単語" value="英単語">
+                <label for="import-category-input">カテゴリ（最大50文字）</label>
+                <input type="text" id="import-category-input" class="input-field" placeholder="例: 英単語" value="英単語" maxlength="50" aria-label="カテゴリ名（最大50文字）">
             </div>
             <div class="form-group">
                 <label for="image-input">画像を選択</label>
@@ -137,21 +137,21 @@
         </div>
         <div class="container">
             <div class="form-group">
-                <label for="gemini-api-key-input">Gemini API Key</label>
-                <input type="password" id="gemini-api-key-input" class="input-field" placeholder="AIza...">
+                <label for="gemini-api-key-input">Gemini API Key（最大100文字）</label>
+                <input type="password" id="gemini-api-key-input" class="input-field" placeholder="AIza..." maxlength="100" aria-label="Gemini API Key（最大100文字）">
                 <p style="font-size: 12px; color: #666; margin-top: 5px;">
                     Gemini APIキーは<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #4285f4;">Google AI Studio</a>で取得できます
                 </p>
-                <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
-                    <p style="font-size: 12px; color: #856404; margin: 0;">
-                        <strong>⚠️ セキュリティに関する注意</strong><br>
-                        API Keyはブラウザのローカルストレージに保存されます。共有PCや公共のPCでは使用しないでください。
+                <div style="margin-top: 10px; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+                    <p style="font-size: 12px; color: #0c5460; margin: 0;">
+                        <strong>🔒 セキュリティ強化</strong><br>
+                        API KeyはWeb Crypto APIで暗号化してlocalStorageに保存されます。ただし、同じブラウザ上で復号化可能なため、共有PCや公共のPCでは使用しないでください。
                     </p>
                 </div>
-                <div style="margin-top: 10px; padding: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
-                    <p style="font-size: 12px; color: #721c24; margin: 0;">
-                        <strong>🔒 セキュリティ警告</strong><br>
-                        このアプリはクライアントサイドのみで動作し、API Keyは暗号化されずに保存されます。本番環境や機密性の高い用途には使用しないでください。XSS攻撃のリスクがあるため、信頼できる環境でのみ使用してください。
+                <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+                    <p style="font-size: 12px; color: #856404; margin: 0;">
+                        <strong>⚠️ 注意事項</strong><br>
+                        このアプリは教育目的および個人利用を想定しています。本番環境や機密性の高い用途には使用しないでください。
                     </p>
                 </div>
             </div>

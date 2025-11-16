@@ -3,6 +3,17 @@ const STORAGE_KEY = 'MEMORY';
 const API_KEY_STORAGE_KEY = 'GEMINI_API_KEY';
 const MAX_IMPORT_TEXT_LENGTH = 100000; // インポートテキストの最大長
 
+// 入力制限の定数
+const INPUT_LIMITS = {
+    CATEGORY: 50,                       // カテゴリ名の最大文字数
+    QUESTION: 50,                       // 問題文の最大文字数
+    ANSWER: 50,                         // 解答の最大文字数
+    API_KEY: 100,                       // APIキーの最大文字数
+    MAX_CARDS: 10000,                   // カード総数の上限
+    MAX_IMAGE_SIZE: 10 * 1024 * 1024,   // 画像ファイルサイズ上限（10MB）
+    FETCH_TIMEOUT: 30000                // API呼び出しタイムアウト（30秒）
+};
+
 /**
  * 衝突のないユニークIDを生成
  * crypto.randomUUID()が利用可能な場合はそれを使用、
@@ -45,6 +56,104 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// ========== API Key暗号化関数 ==========
+
+/**
+ * パスワードから暗号化キーを生成
+ * ブラウザ環境から一意な値を生成してキーマテリアルとする
+ * @param {Uint8Array} salt - ソルト値
+ * @returns {Promise<CryptoKey>} 暗号化キー
+ */
+async function deriveKey(salt) {
+    // ブラウザフィンガープリント的な値を使用（簡易版）
+    const baseString = navigator.userAgent + navigator.language + Array.from(salt).join('');
+    const encoder = new TextEncoder();
+    const data = encoder.encode(baseString);
+
+    // SHA-256でハッシュ化
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+    // AES-GCMキーとしてインポート
+    return await crypto.subtle.importKey(
+        'raw',
+        hashBuffer,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+
+/**
+ * API Keyを暗号化
+ * @param {string} apiKey - 暗号化するAPIキー
+ * @returns {Promise<string>} Base64エンコードされた暗号化データ
+ */
+async function encryptApiKey(apiKey) {
+    try {
+        // ランダムなsaltとIV（初期化ベクトル）を生成
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+
+        // 暗号化キーを生成
+        const key = await deriveKey(salt);
+
+        // API Keyを暗号化
+        const encoder = new TextEncoder();
+        const data = encoder.encode(apiKey);
+        const encrypted = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: iv },
+            key,
+            data
+        );
+
+        // salt + iv + 暗号化データを結合
+        const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+        combined.set(salt, 0);
+        combined.set(iv, salt.length);
+        combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+
+        // Base64エンコードして保存
+        return btoa(String.fromCharCode(...combined));
+    } catch (error) {
+        console.error('暗号化エラー:', error);
+        throw new Error('API Keyの暗号化に失敗しました');
+    }
+}
+
+/**
+ * API Keyを復号化
+ * @param {string} encryptedData - Base64エンコードされた暗号化データ
+ * @returns {Promise<string>} 復号化されたAPIキー
+ */
+async function decryptApiKey(encryptedData) {
+    try {
+        // Base64デコード
+        const combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+
+        // salt, iv, 暗号化データを分離
+        const salt = combined.slice(0, 16);
+        const iv = combined.slice(16, 28);
+        const encrypted = combined.slice(28);
+
+        // 暗号化キーを生成（保存時と同じキー）
+        const key = await deriveKey(salt);
+
+        // 復号化
+        const decrypted = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: iv },
+            key,
+            encrypted
+        );
+
+        // 文字列に変換
+        const decoder = new TextDecoder();
+        return decoder.decode(decrypted);
+    } catch (error) {
+        console.error('復号化エラー:', error);
+        throw new Error('API Keyの復号化に失敗しました');
+    }
 }
 
 /**
@@ -110,19 +219,29 @@ function loadCards() {
     }
 }
 
-// Gemini API Keyの保存
-function saveApiKey(apiKey) {
+// Gemini API Keyの保存（暗号化して保存）
+async function saveApiKey(apiKey) {
     try {
-        localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+        const encrypted = await encryptApiKey(apiKey);
+        localStorage.setItem(API_KEY_STORAGE_KEY, encrypted);
         return true;
     } catch (e) {
         handleStorageError(e, 'API Key');
     }
 }
 
-// Gemini API Keyの読み込み
-function loadApiKey() {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+// Gemini API Keyの読み込み（復号化して返す）
+async function loadApiKey() {
+    try {
+        const encrypted = localStorage.getItem(API_KEY_STORAGE_KEY);
+        if (!encrypted) return '';
+        return await decryptApiKey(encrypted);
+    } catch (error) {
+        console.error('API Key読み込みエラー:', error);
+        // 復号化に失敗した場合は古いデータとして削除
+        clearApiKey();
+        return '';
+    }
 }
 
 // Gemini API Keyの削除
@@ -342,9 +461,28 @@ document.getElementById('cancel-add-btn').addEventListener('click', () => {
 
 // 追加画面: 保存ボタン
 document.getElementById('save-card-btn').addEventListener('click', () => {
-    const category = sanitizeInput(document.getElementById('category-input').value.trim());
-    const question = sanitizeInput(document.getElementById('question-input').value.trim());
-    const answer = sanitizeInput(document.getElementById('answer-input').value.trim());
+    const categoryRaw = document.getElementById('category-input').value.trim();
+    const questionRaw = document.getElementById('question-input').value.trim();
+    const answerRaw = document.getElementById('answer-input').value.trim();
+
+    // 入力長制限チェック
+    if (categoryRaw.length > INPUT_LIMITS.CATEGORY) {
+        alert(`カテゴリ名は${INPUT_LIMITS.CATEGORY}文字以内にしてください`);
+        return;
+    }
+    if (questionRaw.length > INPUT_LIMITS.QUESTION) {
+        alert(`問題文は${INPUT_LIMITS.QUESTION}文字以内にしてください`);
+        return;
+    }
+    if (answerRaw.length > INPUT_LIMITS.ANSWER) {
+        alert(`解答は${INPUT_LIMITS.ANSWER}文字以内にしてください`);
+        return;
+    }
+
+    // サニタイズ
+    const category = sanitizeInput(categoryRaw, INPUT_LIMITS.CATEGORY);
+    const question = sanitizeInput(questionRaw, INPUT_LIMITS.QUESTION);
+    const answer = sanitizeInput(answerRaw, INPUT_LIMITS.ANSWER);
 
     if (!question || !answer) {
         alert('問題と解答を入力してください');
@@ -527,9 +665,9 @@ document.getElementById('back-to-home-btn').addEventListener('click', () => {
 });
 
 // 設定画面の初期化
-function initSettingsView() {
+async function initSettingsView() {
     showView('settings-view');
-    const apiKey = loadApiKey();
+    const apiKey = await loadApiKey();
     document.getElementById('gemini-api-key-input').value = apiKey;
     document.getElementById('settings-status').textContent = '';
 }
@@ -540,21 +678,28 @@ document.getElementById('back-from-settings-btn').addEventListener('click', () =
 });
 
 // 設定画面: 保存ボタン
-document.getElementById('save-settings-btn').addEventListener('click', () => {
+document.getElementById('save-settings-btn').addEventListener('click', async () => {
     const apiKeyRaw = document.getElementById('gemini-api-key-input').value.trim();
     // セキュリティ: まず入力をサニタイズ
-    const apiKey = sanitizeInput(apiKeyRaw, 100);
+    const apiKey = sanitizeInput(apiKeyRaw, INPUT_LIMITS.API_KEY);
 
     if (!apiKey) {
         alert('API Keyを入力してください');
         return;
     }
+
+    // 入力長制限チェック
+    if (apiKeyRaw.length > INPUT_LIMITS.API_KEY) {
+        alert(`API Keyは${INPUT_LIMITS.API_KEY}文字以内にしてください`);
+        return;
+    }
+
     if (!validateApiKey(apiKey)) {
         alert('API Keyの形式が正しくありません。有効なGemini API Keyを入力してください。');
         return;
     }
     try {
-        saveApiKey(apiKey);
+        await saveApiKey(apiKey);
         document.getElementById('settings-status').textContent = '設定を保存しました';
         setTimeout(() => {
             document.getElementById('settings-status').textContent = '';
@@ -648,6 +793,15 @@ document.getElementById('cancel-import-btn').addEventListener('click', () => {
 document.getElementById('image-input').addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
+    // ファイルサイズチェック
+    if (file.size > INPUT_LIMITS.MAX_IMAGE_SIZE) {
+        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+        const limitMB = (INPUT_LIMITS.MAX_IMAGE_SIZE / 1024 / 1024).toFixed(0);
+        alert(`画像サイズが大きすぎます。\n現在: ${sizeMB}MB\n上限: ${limitMB}MB\n\nより小さい画像を選択してください。`);
+        event.target.value = ''; // 入力をクリア
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -859,7 +1013,7 @@ function extractRedText(img) {
  * @throws {Error} APIキー未設定、ネットワークエラー、APIエラー
  */
 async function performOCR(canvas) {
-    const apiKey = loadApiKey();
+    const apiKey = await loadApiKey();
     if (!apiKey) {
         throw new Error('Gemini API Keyが設定されていません。設定画面から設定してください。');
     }
@@ -870,87 +1024,103 @@ async function performOCR(canvas) {
     // Gemini APIにリクエスト
     updateImportStatus('Gemini APIで画像を解析中...');
 
-    const response = await fetch(GEMINI_API_CONFIG.endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey  // セキュリティ向上: URLではなくヘッダーでAPI keyを送信
-        },
-        body: JSON.stringify({
-            contents: [{
-                parts: [
-                    {
-                        text: GEMINI_API_CONFIG.prompt
-                    },
-                    {
-                        inline_data: {
-                            mime_type: 'image/png',
-                            data: base64Image
-                        }
-                    }
-                ]
-            }]
-        })
-    });
+    // タイムアウト設定
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), INPUT_LIMITS.FETCH_TIMEOUT);
 
-    if (!response.ok) {
-        // レート制限エラーの特別処理
-        if (response.status === 429) {
-            throw new Error('APIのリクエスト上限に達しました。しばらく時間をおいてから再度お試しください。');
-        }
-
-        // 認証エラーの特別処理
-        if (response.status === 401 || response.status === 403) {
-            throw new Error('API Keyが無効です。設定画面で正しいAPI Keyを設定してください。');
-        }
-
-        let errorMessage = response.statusText;
-        try {
-            const errorData = await response.json();
-            errorMessage = errorData.error?.message || errorMessage;
-        } catch (e) {
-            // JSONパースエラーは無視してstatusTextを使用
-            console.error('Failed to parse error response:', e);
-        }
-        throw new Error(`Gemini API error: ${errorMessage}`);
-    }
-
-    let data;
     try {
-        data = await response.json();
-    } catch (e) {
-        throw new Error('Gemini APIからのレスポンスの解析に失敗しました。ネットワーク接続を確認してください。');
+        const response = await fetch(GEMINI_API_CONFIG.endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey  // セキュリティ向上: URLではなくヘッダーでAPI keyを送信
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        {
+                            text: GEMINI_API_CONFIG.prompt
+                        },
+                        {
+                            inline_data: {
+                                mime_type: 'image/png',
+                                data: base64Image
+                            }
+                        }
+                    ]
+                }]
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            // レート制限エラーの特別処理
+            if (response.status === 429) {
+                throw new Error('APIのリクエスト上限に達しました。しばらく時間をおいてから再度お試しください。');
+            }
+
+            // 認証エラーの特別処理
+            if (response.status === 401 || response.status === 403) {
+                throw new Error('API Keyが無効です。設定画面で正しいAPI Keyを設定してください。');
+            }
+
+            let errorMessage = response.statusText;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error?.message || errorMessage;
+            } catch (e) {
+                // JSONパースエラーは無視してstatusTextを使用
+                console.error('Failed to parse error response:', e);
+            }
+            throw new Error(`Gemini API error: ${errorMessage}`);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            throw new Error('Gemini APIからのレスポンスの解析に失敗しました。ネットワーク接続を確認してください。');
+        }
+
+        // レスポンスからテキストを抽出
+        // レスポンス構造の詳細バリデーション
+        if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
+            throw new Error('Gemini APIからのレスポンスが不正です（candidates配列が存在しません）。画像の内容を確認してください。');
+        }
+
+        const candidate = data.candidates[0];
+        if (!candidate?.content?.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
+            throw new Error('Gemini APIからのレスポンスが不正です（parts配列が存在しません）。画像の内容を確認してください。');
+        }
+
+        const textPart = candidate.content.parts[0];
+        if (!textPart?.text || typeof textPart.text !== 'string') {
+            throw new Error('Gemini APIからのレスポンスが不正です（テキストデータが存在しません）。画像の内容を確認してください。');
+        }
+
+        const extractedText = textPart.text;
+
+        // レスポンス内容のバリデーション
+        if (extractedText.trim().length === 0) {
+            throw new Error('APIから空のレスポンスが返されました。画像に認識可能なテキストがあるか確認してください。');
+        }
+
+        // 異常に大きなレスポンスをチェック（100KB以上）
+        if (extractedText.length > MAX_IMPORT_TEXT_LENGTH) {
+            throw new Error('レスポンスが大きすぎます。画像サイズを小さくしてください。');
+        }
+
+        return extractedText;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        // タイムアウトエラーの特別処理
+        if (error.name === 'AbortError') {
+            throw new Error(`リクエストがタイムアウトしました（${INPUT_LIMITS.FETCH_TIMEOUT / 1000}秒）。ネットワーク接続を確認してください。`);
+        }
+        // その他のエラーは再スロー
+        throw error;
     }
-
-    // レスポンスからテキストを抽出
-    // レスポンス構造の詳細バリデーション
-    if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
-        throw new Error('Gemini APIからのレスポンスが不正です（candidates配列が存在しません）。画像の内容を確認してください。');
-    }
-
-    const candidate = data.candidates[0];
-    if (!candidate?.content?.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
-        throw new Error('Gemini APIからのレスポンスが不正です（parts配列が存在しません）。画像の内容を確認してください。');
-    }
-
-    const textPart = candidate.content.parts[0];
-    if (!textPart?.text || typeof textPart.text !== 'string') {
-        throw new Error('Gemini APIからのレスポンスが不正です（テキストデータが存在しません）。画像の内容を確認してください。');
-    }
-
-    const extractedText = textPart.text;
-
-    // レスポンス内容のバリデーション
-    if (extractedText.trim().length === 0) {
-        throw new Error('APIから空のレスポンスが返されました。画像に認識可能なテキストがあるか確認してください。');
-    }
-
-    // 異常に大きなレスポンスをチェック（100KB以上）
-    if (extractedText.length > MAX_IMPORT_TEXT_LENGTH) {
-        throw new Error('レスポンスが大きすぎます。画像サイズを小さくしてください。');
-    }
-
-    return extractedText;
 }
 
 /**
@@ -1057,6 +1227,7 @@ function displayImportPreview(cards) {
         questionInput.dataset.index = index;
         questionInput.dataset.field = 'question';
         questionInput.value = card.question; // DOM API により自動的にエスケープ
+        questionInput.maxLength = INPUT_LIMITS.QUESTION;
 
         questionDiv.appendChild(questionLabel);
         questionDiv.appendChild(questionInput);
@@ -1077,6 +1248,7 @@ function displayImportPreview(cards) {
         answerInput.dataset.index = index;
         answerInput.dataset.field = 'answer';
         answerInput.value = card.answer; // DOM API により自動的にエスケープ
+        answerInput.maxLength = INPUT_LIMITS.ANSWER;
 
         answerDiv.appendChild(answerLabel);
         answerDiv.appendChild(answerInput);
