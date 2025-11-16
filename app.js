@@ -6,16 +6,23 @@ const MAX_IMPORT_TEXT_LENGTH = 100000; // インポートテキストの最大�
 /**
  * 衝突のないユニークIDを生成
  * crypto.randomUUID()が利用可能な場合はそれを使用、
- * それ以外の場合は高エントロピーのフォールバック方式を使用
+ * それ以外の場合は暗号学的に安全な乱数を使用
  * @returns {string} ユニークID
  */
 function generateUniqueId() {
-    // crypto.randomUUID()が使用可能な場合
+    // crypto.randomUUID()が使用可能な場合（最も推奨）
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
     }
 
-    // フォールバック: タイムスタンプ + 高エントロピー乱数
+    // フォールバック: crypto.getRandomValues()を使用
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const array = new Uint32Array(4);
+        crypto.getRandomValues(array);
+        return Array.from(array, dec => dec.toString(36)).join('-');
+    }
+
+    // 最終フォールバック（古いブラウザ用）: タイムスタンプ + Math.random()
     const timestamp = Date.now().toString(36);
     const randomPart1 = Math.random().toString(36).substring(2, 11);
     const randomPart2 = Math.random().toString(36).substring(2, 11);
@@ -177,6 +184,7 @@ function createCard(category, question, answer) {
 /**
  * カードをIDで削除（インデックスベースの削除はレガシーサポート）
  * @param {string|number} idOrIndex - カードIDまたはインデックス
+ * @throws {Error} ストレージへの保存に失敗した場合
  */
 function deleteCard(idOrIndex) {
     const cards = loadCards();
@@ -192,7 +200,12 @@ function deleteCard(idOrIndex) {
         }
     }
 
-    saveCards(cards);
+    try {
+        saveCards(cards);
+    } catch (error) {
+        console.error('カードの削除に失敗しました:', error);
+        throw error;
+    }
 }
 
 // カード配列をシャッフル
@@ -220,6 +233,21 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * HTML属性用エスケープ関数（XSS対策）
+ * @param {string} text - エスケープするテキスト
+ * @returns {string} 属性用にエスケープされたテキスト
+ */
+function escapeHtmlAttr(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    // HTMLエンティティ化した上で、引用符も追加エスケープ
+    return div.innerHTML
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 /**
@@ -999,11 +1027,11 @@ function displayImportPreview(cards) {
         cardDiv.innerHTML = `
             <div style="margin-bottom: 10px;">
                 <label style="display: block; font-weight: bold; margin-bottom: 5px;">問題:</label>
-                <input type="text" class="preview-input" data-index="${index}" data-field="question" value="${escapeHtml(card.question)}">
+                <input type="text" class="preview-input" data-index="${index}" data-field="question" value="${escapeHtmlAttr(card.question)}">
             </div>
             <div style="margin-bottom: 10px;">
                 <label style="display: block; font-weight: bold; margin-bottom: 5px;">答え:</label>
-                <input type="text" class="preview-input" data-index="${index}" data-field="answer" value="${escapeHtml(card.answer)}">
+                <input type="text" class="preview-input" data-index="${index}" data-field="answer" value="${escapeHtmlAttr(card.answer)}">
             </div>
             <button class="delete-preview-btn" data-index="${index}" style="background-color: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">削除</button>
         `;

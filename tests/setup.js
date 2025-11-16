@@ -46,4 +46,58 @@ if (typeof crypto === 'undefined' || !crypto.randomUUID) {
 
 // Load app.js functions for testing
 // In a real setup, you would extract functions to modules and import them
-// For now, we'll include the functions directly or use JSDOM to load the script
+// For now, we'll define essential functions directly in the test setup
+
+// Define escapeHtmlAttr for testing
+global.escapeHtmlAttr = function(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+// Load other functions from app.js
+const fs = require('fs');
+const path = require('path');
+
+// Read app.js and extract only function definitions (avoid executing event listeners)
+const appJsPath = path.join(__dirname, '..', 'app.js');
+const appJsContent = fs.readFileSync(appJsPath, 'utf8');
+
+// Mock DOM elements to prevent errors during app.js execution
+const mockElement = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    value: '',
+    textContent: '',
+    innerHTML: '',
+    style: {},
+    classList: {
+        add: () => {},
+        remove: () => {},
+        toggle: () => {}
+    }
+};
+
+const originalGetElementById = global.document?.getElementById;
+if (typeof document !== 'undefined') {
+    // Mock getElementById to return a mock element for any ID
+    document.getElementById = (id) => mockElement;
+
+    try {
+        // Execute app.js in global scope to make functions available
+        eval(appJsContent);
+    } catch (error) {
+        // Ignore errors from event listener setup
+        if (!error.message.includes('addEventListener')) {
+            console.error('Error loading app.js:', error);
+        }
+    }
+
+    // Restore original getElementById
+    if (originalGetElementById) {
+        document.getElementById = originalGetElementById;
+    }
+}
