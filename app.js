@@ -307,9 +307,9 @@ document.getElementById('cancel-add-btn').addEventListener('click', () => {
 
 // 追加画面: 保存ボタン
 document.getElementById('save-card-btn').addEventListener('click', () => {
-    const category = document.getElementById('category-input').value.trim();
-    const question = document.getElementById('question-input').value.trim();
-    const answer = document.getElementById('answer-input').value.trim();
+    const category = sanitizeInput(document.getElementById('category-input').value.trim());
+    const question = sanitizeInput(document.getElementById('question-input').value.trim());
+    const answer = sanitizeInput(document.getElementById('answer-input').value.trim());
 
     if (!question || !answer) {
         alert('問題と解答を入力してください');
