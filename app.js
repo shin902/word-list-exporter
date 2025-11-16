@@ -301,23 +301,25 @@ function createCard(category, question, answer) {
 }
 
 /**
- * カードをIDで削除（インデックスベースの削除はレガシーサポート）
- * @param {string|number} idOrIndex - カードIDまたはインデックス
- * @throws {Error} ストレージへの保存に失敗した場合
+ * カードをIDで削除
+ * @param {string} id - カードID
+ * @throws {Error} カードIDが不正、または保存に失敗した場合
  */
-function deleteCard(idOrIndex) {
+function deleteCard(id) {
+    // 入力検証
+    if (!id || typeof id !== 'string') {
+        throw new Error('無効なカードIDです');
+    }
+
     const cards = loadCards();
 
-    // 数値の場合はインデックスとして扱う（レガシーサポート）
-    if (typeof idOrIndex === 'number') {
-        cards.splice(idOrIndex, 1);
-    } else {
-        // IDで削除
-        const index = cards.findIndex(c => c.id === idOrIndex);
-        if (index !== -1) {
-            cards.splice(index, 1);
-        }
+    // IDで検索して削除
+    const index = cards.findIndex(c => c.id === id);
+    if (index === -1) {
+        throw new Error('カードが見つかりませんでした');
     }
+
+    cards.splice(index, 1);
 
     try {
         saveCards(cards);
@@ -520,10 +522,17 @@ function renderListView() {
         return;
     }
 
-    // カテゴリ別にグループ化
-    const categories = getCategories();
+    // カテゴリ別にグループ化（パフォーマンス最適化: O(n×m) → O(n)）
+    const cardsByCategory = cards.reduce((acc, card) => {
+        if (!acc.has(card.category)) {
+            acc.set(card.category, []);
+        }
+        acc.get(card.category).push(card);
+        return acc;
+    }, new Map());
 
-    categories.forEach(category => {
+    // カテゴリごとに表示
+    for (const [category, categoryCards] of cardsByCategory) {
         const categorySection = document.createElement('div');
         categorySection.className = 'category-section';
 
@@ -532,49 +541,47 @@ function renderListView() {
         categoryHeader.textContent = category;
         categorySection.appendChild(categoryHeader);
 
-        // このカテゴリのカードを取得
-        cards.forEach((card, index) => {
-            if (card.category === category) {
-                const cardItem = document.createElement('div');
-                cardItem.className = 'card-item';
+        // このカテゴリのカードを表示
+        categoryCards.forEach((card) => {
+            const cardItem = document.createElement('div');
+            cardItem.className = 'card-item';
 
-                const cardContent = document.createElement('div');
-                cardContent.className = 'card-content';
+            const cardContent = document.createElement('div');
+            cardContent.className = 'card-content';
 
-                const cardQuestion = document.createElement('div');
-                cardQuestion.className = 'card-question';
-                cardQuestion.innerHTML = parseSubscriptSuperscript(card.question);
+            const cardQuestion = document.createElement('div');
+            cardQuestion.className = 'card-question';
+            cardQuestion.innerHTML = parseSubscriptSuperscript(card.question);
 
-                const cardAnswer = document.createElement('div');
-                cardAnswer.className = 'card-answer';
-                cardAnswer.innerHTML = parseSubscriptSuperscript(card.answer);
+            const cardAnswer = document.createElement('div');
+            cardAnswer.className = 'card-answer';
+            cardAnswer.innerHTML = parseSubscriptSuperscript(card.answer);
 
-                cardContent.appendChild(cardQuestion);
-                cardContent.appendChild(cardAnswer);
+            cardContent.appendChild(cardQuestion);
+            cardContent.appendChild(cardAnswer);
 
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.textContent = '削除';
-                deleteBtn.addEventListener('click', () => {
-                    if (confirm('この単語カードを削除しますか?')) {
-                        try {
-                            // IDベースで削除（移行により全カードにIDが設定済み）
-                            deleteCard(card.id);
-                            renderListView();
-                        } catch (error) {
-                            alert('削除に失敗しました: ' + error.message);
-                        }
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.textContent = '削除';
+            deleteBtn.addEventListener('click', () => {
+                if (confirm('この単語カードを削除しますか?')) {
+                    try {
+                        // IDベースで削除（移行により全カードにIDが設定済み）
+                        deleteCard(card.id);
+                        renderListView();
+                    } catch (error) {
+                        alert('削除に失敗しました: ' + error.message);
                     }
-                });
+                }
+            });
 
-                cardItem.appendChild(cardContent);
-                cardItem.appendChild(deleteBtn);
-                categorySection.appendChild(cardItem);
-            }
+            cardItem.appendChild(cardContent);
+            cardItem.appendChild(deleteBtn);
+            categorySection.appendChild(cardItem);
         });
 
         cardListElement.appendChild(categorySection);
-    });
+    }
 }
 
 // 一覧画面: 戻るボタン
@@ -1272,19 +1279,27 @@ function displayImportPreview(cards) {
         previewDiv.appendChild(cardDiv);
     });
 
-    // 編集イベントリスナー（デバウンス適用で性能向上）
-    document.querySelectorAll('.preview-input').forEach(input => {
-        input.addEventListener('input', debounce((e) => {
+    // イベント委譲パターン（メモリリーク防止）
+    // 既存のイベントリスナーをクリア
+    const oldPreviewDiv = document.getElementById('import-preview');
+    const newPreviewDiv = oldPreviewDiv.cloneNode(false);
+    newPreviewDiv.innerHTML = oldPreviewDiv.innerHTML;
+    oldPreviewDiv.parentNode.replaceChild(newPreviewDiv, oldPreviewDiv);
+
+    // 親要素に1つのイベントリスナーを設定（イベント委譲）
+    const handlePreviewInput = debounce((e) => {
+        if (e.target.classList.contains('preview-input')) {
             const index = parseInt(e.target.dataset.index);
             const field = e.target.dataset.field;
             // ユーザー入力をサニタイズ
             extractedCards[index][field] = sanitizeInput(e.target.value);
-        }, 300));
-    });
+        }
+    }, 300);
 
-    // 削除イベントリスナー
-    document.querySelectorAll('.delete-preview-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    newPreviewDiv.addEventListener('input', handlePreviewInput);
+
+    newPreviewDiv.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-preview-btn')) {
             const index = parseInt(e.target.dataset.index);
             if (confirm('このカードを削除しますか？')) {
                 extractedCards.splice(index, 1);
@@ -1297,7 +1312,7 @@ function displayImportPreview(cards) {
                     updateImportStatus(`${extractedCards.length}件のカードを検出しました。確認して保存してください。`);
                 }
             }
-        });
+        }
     });
 }
 
