@@ -58,6 +58,31 @@ global.escapeHtmlAttr = function(text) {
         .replace(/'/g, '&#39;');
 };
 
+// Define sanitizeInput for testing (updated version with Unicode control chars)
+global.sanitizeInput = function(text, maxLength = 1000) {
+    if (!text) return '';
+    return text.replace(/[\x00-\x1F\x7F-\x9F\u2028\u2029]/g, '')
+               .trim()
+               .substring(0, maxLength);
+};
+
+// Define escapeHtml for testing
+global.escapeHtml = function(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+};
+
+// Define parseSubscriptSuperscript for testing (with ReDoS prevention)
+global.parseSubscriptSuperscript = function(text) {
+    text = global.escapeHtml(text);
+    text = text.replace(/\^\{([^}]{1,100})\}/g, '<span class="superscript">$1</span>');
+    text = text.replace(/\^(.)/g, '<span class="superscript">$1</span>');
+    text = text.replace(/\_\{([^}]{1,100})\}/g, '<span class="subscript">$1</span>');
+    text = text.replace(/\_(.)/g, '<span class="subscript">$1</span>');
+    return text;
+};
+
 // Load other functions from app.js
 const fs = require('fs');
 const path = require('path');

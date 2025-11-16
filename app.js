@@ -252,6 +252,7 @@ function escapeHtmlAttr(text) {
 
 /**
  * 入力サニタイゼーション関数
+ * ASCII制御文字（C0, C1）およびUnicode行区切り文字を除去
  * @param {string} text - サニタイズするテキスト
  * @param {number} maxLength - 最大文字数（デフォルト: 1000）
  * @returns {string} サニタイズされたテキスト
@@ -259,13 +260,19 @@ function escapeHtmlAttr(text) {
 function sanitizeInput(text, maxLength = 1000) {
     if (!text) return '';
     // 制御文字を除去し、最大長を制限
-    return text.replace(/[\x00-\x1F\x7F]/g, '')
+    // \x00-\x1F: C0制御文字（ASCII 0-31）
+    // \x7F: DEL文字
+    // \x80-\x9F: C1制御文字（Unicode 128-159）
+    // \u2028: Line Separator
+    // \u2029: Paragraph Separator
+    return text.replace(/[\x00-\x1F\x7F-\x9F\u2028\u2029]/g, '')
                .trim()
                .substring(0, maxLength);
 }
 
 /**
  * 上付き・下付き文字を変換（XSS対策のため先にエスケープ）
+ * ReDoS攻撃を防ぐため、最大長を制限
  * @param {string} text - 変換するテキスト
  * @returns {string} 変換されたHTML
  */
@@ -273,13 +280,13 @@ function parseSubscriptSuperscript(text) {
     // まずHTMLエスケープしてXSS攻撃を防ぐ
     text = escapeHtml(text);
 
-    // 波括弧付き上付き文字: ^{text}
-    text = text.replace(/\^\{([^}]+)\}/g, '<span class="superscript">$1</span>');
+    // 波括弧付き上付き文字: ^{text} (最大100文字に制限してReDoS防止)
+    text = text.replace(/\^\{([^}]{1,100})\}/g, '<span class="superscript">$1</span>');
     // 単一文字上付き文字: ^x
     text = text.replace(/\^(.)/g, '<span class="superscript">$1</span>');
 
-    // 波括弧付き下付き文字: _{text}
-    text = text.replace(/\_\{([^}]+)\}/g, '<span class="subscript">$1</span>');
+    // 波括弧付き下付き文字: _{text} (最大100文字に制限してReDoS防止)
+    text = text.replace(/\_\{([^}]{1,100})\}/g, '<span class="subscript">$1</span>');
     // 単一文字下付き文字: _x
     text = text.replace(/\_(.)/g, '<span class="subscript">$1</span>');
 
@@ -1015,26 +1022,81 @@ function parseTextToCards(text) {
 
 /**
  * インポートプレビューを表示（編集機能付き）
+ * DOM APIを使用してXSS脆弱性を防止
  * @param {Array} cards - プレビューするカード配列
  */
 function displayImportPreview(cards) {
     const previewDiv = document.getElementById('import-preview');
-    previewDiv.innerHTML = '<h3 style="margin-bottom: 15px; color: #333;">検出されたカード（編集可能）:</h3>';
+    // 既存の内容をクリア
+    previewDiv.innerHTML = '';
+
+    // ヘッダーを作成
+    const header = document.createElement('h3');
+    header.textContent = '検出されたカード（編集可能）:';
+    header.style.marginBottom = '15px';
+    header.style.color = '#333';
+    previewDiv.appendChild(header);
 
     cards.forEach((card, index) => {
         const cardDiv = document.createElement('div');
         cardDiv.className = 'preview-card';
-        cardDiv.innerHTML = `
-            <div style="margin-bottom: 10px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">問題:</label>
-                <input type="text" class="preview-input" data-index="${index}" data-field="question" value="${escapeHtmlAttr(card.question)}">
-            </div>
-            <div style="margin-bottom: 10px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">答え:</label>
-                <input type="text" class="preview-input" data-index="${index}" data-field="answer" value="${escapeHtmlAttr(card.answer)}">
-            </div>
-            <button class="delete-preview-btn" data-index="${index}" style="background-color: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">削除</button>
-        `;
+
+        // 問題セクション
+        const questionDiv = document.createElement('div');
+        questionDiv.style.marginBottom = '10px';
+
+        const questionLabel = document.createElement('label');
+        questionLabel.textContent = '問題:';
+        questionLabel.style.display = 'block';
+        questionLabel.style.fontWeight = 'bold';
+        questionLabel.style.marginBottom = '5px';
+
+        const questionInput = document.createElement('input');
+        questionInput.type = 'text';
+        questionInput.className = 'preview-input';
+        questionInput.dataset.index = index;
+        questionInput.dataset.field = 'question';
+        questionInput.value = card.question; // DOM API により自動的にエスケープ
+
+        questionDiv.appendChild(questionLabel);
+        questionDiv.appendChild(questionInput);
+
+        // 答えセクション
+        const answerDiv = document.createElement('div');
+        answerDiv.style.marginBottom = '10px';
+
+        const answerLabel = document.createElement('label');
+        answerLabel.textContent = '答え:';
+        answerLabel.style.display = 'block';
+        answerLabel.style.fontWeight = 'bold';
+        answerLabel.style.marginBottom = '5px';
+
+        const answerInput = document.createElement('input');
+        answerInput.type = 'text';
+        answerInput.className = 'preview-input';
+        answerInput.dataset.index = index;
+        answerInput.dataset.field = 'answer';
+        answerInput.value = card.answer; // DOM API により自動的にエスケープ
+
+        answerDiv.appendChild(answerLabel);
+        answerDiv.appendChild(answerInput);
+
+        // 削除ボタン
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-preview-btn';
+        deleteBtn.dataset.index = index;
+        deleteBtn.textContent = '削除';
+        deleteBtn.style.backgroundColor = '#ff4444';
+        deleteBtn.style.color = 'white';
+        deleteBtn.style.border = 'none';
+        deleteBtn.style.padding = '5px 10px';
+        deleteBtn.style.borderRadius = '3px';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.style.fontSize = '12px';
+
+        cardDiv.appendChild(questionDiv);
+        cardDiv.appendChild(answerDiv);
+        cardDiv.appendChild(deleteBtn);
         previewDiv.appendChild(cardDiv);
     });
 
