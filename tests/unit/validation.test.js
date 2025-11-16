@@ -94,6 +94,24 @@ describe('sanitizeInput', () => {
         const expected = 'helloworld';
         expect(sanitizeInput(input)).toBe(expected);
     });
+
+    test('removes C1 control characters (0x80-0x9F)', () => {
+        const input = 'hello\x80\x9Fworld';
+        const expected = 'helloworld';
+        expect(sanitizeInput(input)).toBe(expected);
+    });
+
+    test('removes Unicode line separators (U+2028, U+2029)', () => {
+        const input = 'hello\u2028world\u2029test';
+        const expected = 'helloworldtest';
+        expect(sanitizeInput(input)).toBe(expected);
+    });
+
+    test('preserves valid Unicode characters while removing control chars', () => {
+        const input = 'hello\x00世界\u2028テスト\x7F';
+        const expected = 'hello世界テスト';
+        expect(sanitizeInput(input)).toBe(expected);
+    });
 });
 
 describe('escapeHtml', () => {
@@ -124,6 +142,59 @@ describe('escapeHtml', () => {
     test('handles plain text without changes', () => {
         const input = 'Hello World';
         expect(escapeHtml(input)).toBe('Hello World');
+    });
+});
+
+describe('escapeHtmlAttr', () => {
+    test('escapes HTML special characters for attributes', () => {
+        const input = '<script>alert("XSS")</script>';
+        const result = escapeHtmlAttr(input);
+        expect(result).not.toContain('<script>');
+        expect(result).toContain('&lt;');
+        expect(result).toContain('&gt;');
+    });
+
+    test('escapes double quotes for attribute safety', () => {
+        const input = 'value">malicious';
+        const result = escapeHtmlAttr(input);
+        expect(result).toContain('&quot;');
+        expect(result).not.toContain('">');
+    });
+
+    test('escapes single quotes for attribute safety', () => {
+        const input = "value'>malicious";
+        const result = escapeHtmlAttr(input);
+        expect(result).toContain('&#39;');
+        expect(result).not.toContain("'>");
+    });
+
+    test('prevents attribute escape with quote injection', () => {
+        const input = '" onload="alert(1)"';
+        const result = escapeHtmlAttr(input);
+        // All quotes should be escaped, preventing attribute breakout
+        expect(result).toContain('&quot;');
+        expect(result).not.toContain('">'); // Cannot break out of attribute
+        expect(result).not.toContain('" onload="'); // Original injection pattern should be broken
+    });
+
+    test('handles empty string', () => {
+        expect(escapeHtmlAttr('')).toBe('');
+    });
+
+    test('handles null/undefined', () => {
+        expect(escapeHtmlAttr(null)).toBe('');
+        expect(escapeHtmlAttr(undefined)).toBe('');
+    });
+
+    test('handles plain text without changes', () => {
+        const input = 'Hello World';
+        expect(escapeHtmlAttr(input)).toBe('Hello World');
+    });
+
+    test('escapes ampersands in attributes', () => {
+        const input = 'Tom & Jerry';
+        const result = escapeHtmlAttr(input);
+        expect(result).toContain('&amp;');
     });
 });
 
@@ -188,6 +259,37 @@ describe('parseSubscriptSuperscript', () => {
         expect(result).toContain('<span class="superscript">2</span>');
         expect(result).toContain('<span class="superscript">3</span>');
         expect(result).toContain('<span class="subscript">2</span>');
+    });
+
+    test('limits brace content to 100 chars (ReDoS prevention)', () => {
+        // 101文字の場合、波括弧の正規表現にマッチしない
+        const longText = 'a'.repeat(101);
+        const input = `x^{${longText}}`;
+        const result = parseSubscriptSuperscript(input);
+        // 100文字を超えるため、波括弧パターンは変換されないが、^は単一文字として変換される
+        expect(result).toContain('<span class="superscript">{</span>');
+        expect(result).toContain(longText);
+    });
+
+    test('converts brace content up to 100 chars', () => {
+        // 100文字の場合、正常に変換される
+        const longText = 'a'.repeat(100);
+        const input = `x^{${longText}}`;
+        const result = parseSubscriptSuperscript(input);
+        // 100文字以内なので変換される
+        expect(result).toContain(`<span class="superscript">${longText}</span>`);
+    });
+
+    test('prevents ReDoS with unclosed braces', () => {
+        // 閉じ括弧がない場合でもタイムアウトしない
+        const malicious = 'x^{' + 'a'.repeat(1000);
+        const startTime = Date.now();
+        const result = parseSubscriptSuperscript(malicious);
+        const endTime = Date.now();
+        // 1秒以内に完了すること（ReDoSが発生していない証拠）
+        expect(endTime - startTime).toBeLessThan(1000);
+        // ^は単一文字として変換されるため、結果には<span>が含まれる
+        expect(result).toContain('<span class="superscript">{</span>');
     });
 });
 
