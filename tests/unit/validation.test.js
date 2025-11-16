@@ -127,6 +127,59 @@ describe('escapeHtml', () => {
     });
 });
 
+describe('escapeHtmlAttr', () => {
+    test('escapes HTML special characters for attributes', () => {
+        const input = '<script>alert("XSS")</script>';
+        const result = escapeHtmlAttr(input);
+        expect(result).not.toContain('<script>');
+        expect(result).toContain('&lt;');
+        expect(result).toContain('&gt;');
+    });
+
+    test('escapes double quotes for attribute safety', () => {
+        const input = 'value">malicious';
+        const result = escapeHtmlAttr(input);
+        expect(result).toContain('&quot;');
+        expect(result).not.toContain('">');
+    });
+
+    test('escapes single quotes for attribute safety', () => {
+        const input = "value'>malicious";
+        const result = escapeHtmlAttr(input);
+        expect(result).toContain('&#39;');
+        expect(result).not.toContain("'>");
+    });
+
+    test('prevents attribute escape with quote injection', () => {
+        const input = '" onload="alert(1)"';
+        const result = escapeHtmlAttr(input);
+        // All quotes should be escaped, preventing attribute breakout
+        expect(result).toContain('&quot;');
+        expect(result).not.toContain('">'); // Cannot break out of attribute
+        expect(result).not.toContain('" onload="'); // Original injection pattern should be broken
+    });
+
+    test('handles empty string', () => {
+        expect(escapeHtmlAttr('')).toBe('');
+    });
+
+    test('handles null/undefined', () => {
+        expect(escapeHtmlAttr(null)).toBe('');
+        expect(escapeHtmlAttr(undefined)).toBe('');
+    });
+
+    test('handles plain text without changes', () => {
+        const input = 'Hello World';
+        expect(escapeHtmlAttr(input)).toBe('Hello World');
+    });
+
+    test('escapes ampersands in attributes', () => {
+        const input = 'Tom & Jerry';
+        const result = escapeHtmlAttr(input);
+        expect(result).toContain('&amp;');
+    });
+});
+
 describe('generateUniqueId', () => {
     test('generates non-empty string', () => {
         const id = generateUniqueId();
