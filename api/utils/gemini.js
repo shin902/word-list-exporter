@@ -8,7 +8,7 @@ async function performOCR(base64Image) {
         throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const prompt = `画像から英単語（または英文）とその日本語訳を抽出してください。
+    const prompt = `画像から英文と日本語訳を抽出してください。
 赤色のテキストのみを対象としてください。
 各ペアを配列として返してください。`;
 
@@ -19,7 +19,7 @@ async function performOCR(base64Image) {
             properties: {
                 question: {
                     type: "string",
-                    description: "英単語または英文"
+                    description: "英文"
                 },
                 answer: {
                     type: "string",
