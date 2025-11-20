@@ -2,7 +2,6 @@
 ## 単一APIキー管理システムの導入
 
 **作成日**: 2025-11-20
-**ブランチ**: `claude/backend-single-api-key-01Q3eDTWBmKTXnaAYkmreYtj`
 
 ---
 
@@ -161,7 +160,7 @@ word-list-exporter/
 #### 1.2 依存関係のインストール
 
 ```bash
-npm init -y  # バックエンド用のpackage.json作成
+npm install express dotenv cors helmet express-rate-limit
 npm install express dotenv cors helmet express-rate-limit
 npm install --save-dev nodemon jest supertest
 ```
@@ -203,9 +202,13 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+// ローカル開発時のみサーバーを起動
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
 module.exports = app;
 ```
@@ -282,6 +285,13 @@ const { performOCR } = require('../utils/gemini');
 const router = express.Router();
 
 // レート制限: 1時間あたり100リクエスト
+const limiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  message: { error: 'レート制限に達しました。1時間後に再試行してください。' }
+// レート制限: 1時間あたり100リクエスト
+// 注意: VercelなどのServerless環境ではメモリ上のストアはリクエスト毎にリセットされる可能性があるため、
+// 厳密な制限にはRedisなどの外部ストアが必要です。今回は簡易的な実装とします。
 const limiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 100,
@@ -453,37 +463,12 @@ NODE_ENV=production
 // vercel.json
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/index.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "*.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "*.js",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "*.css",
-      "use": "@vercel/static"
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ],
-  "env": {
-    "GEMINI_API_KEY": "@gemini-api-key"
-  }
+  ]
 }
 ```
 

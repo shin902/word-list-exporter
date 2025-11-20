@@ -14,3 +14,17 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Environment variables
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build
+dist/
+build/
+
+
+images/
