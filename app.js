@@ -1,6 +1,6 @@
 // データ操作関数
 const STORAGE_KEY = 'MEMORY';
-const API_KEY_STORAGE_KEY = 'GEMINI_API_KEY';
+
 const MAX_IMPORT_TEXT_LENGTH = 100000; // インポートテキストの最大長
 
 /**
@@ -110,49 +110,7 @@ function loadCards() {
     }
 }
 
-// Gemini API Keyの保存
-function saveApiKey(apiKey) {
-    try {
-        localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
-        return true;
-    } catch (e) {
-        handleStorageError(e, 'API Key');
-    }
-}
 
-// Gemini API Keyの読み込み
-function loadApiKey() {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
-}
-
-// Gemini API Keyの削除
-function clearApiKey() {
-    localStorage.removeItem(API_KEY_STORAGE_KEY);
-}
-
-/**
- * Gemini API Keyのバリデーション
- * @param {string} apiKey - 検証するAPIキー
- * @returns {boolean} 有効な場合true
- */
-function validateApiKey(apiKey) {
-    if (!apiKey) return false;
-
-    // APIキーは英数字、ハイフン、アンダースコアのみ許可
-    const validFormat = /^[A-Za-z0-9_-]{20,}$/;
-    if (!validFormat.test(apiKey)) return false;
-
-    // 最低限の長さチェック（20文字以上）
-    if (apiKey.length < 20) return false;
-
-    // Gemini API keyの既知の形式: "AIza"で始まる39文字
-    if (apiKey.startsWith('AIza')) {
-        return apiKey.length === 39; // 厳密に39文字
-    }
-
-    // 将来の形式変更に対応: 20-100文字
-    return apiKey.length >= 20 && apiKey.length <= 100;
-}
 
 // ローカルストレージに単語カードを保存
 function saveCards(cards) {
@@ -266,8 +224,8 @@ function sanitizeInput(text, maxLength = 1000) {
     // \u2028: Line Separator
     // \u2029: Paragraph Separator
     return text.replace(/[\x00-\x1F\x7F-\x9F\u2028\u2029]/g, '')
-               .trim()
-               .substring(0, maxLength);
+        .trim()
+        .substring(0, maxLength);
 }
 
 /**
@@ -321,10 +279,7 @@ document.getElementById('show-list-btn').addEventListener('click', () => {
     renderListView();
 });
 
-// ホーム画面: 設定ボタン
-document.getElementById('settings-btn').addEventListener('click', () => {
-    initSettingsView();
-});
+
 
 // 単語カード追加画面の初期化
 function initAddView() {
@@ -526,55 +481,7 @@ document.getElementById('back-to-home-btn').addEventListener('click', () => {
     initHomeView();
 });
 
-// 設定画面の初期化
-function initSettingsView() {
-    showView('settings-view');
-    const apiKey = loadApiKey();
-    document.getElementById('gemini-api-key-input').value = apiKey;
-    document.getElementById('settings-status').textContent = '';
-}
 
-// 設定画面: 戻るボタン
-document.getElementById('back-from-settings-btn').addEventListener('click', () => {
-    initHomeView();
-});
-
-// 設定画面: 保存ボタン
-document.getElementById('save-settings-btn').addEventListener('click', () => {
-    const apiKeyRaw = document.getElementById('gemini-api-key-input').value.trim();
-    // セキュリティ: まず入力をサニタイズ
-    const apiKey = sanitizeInput(apiKeyRaw, 100);
-
-    if (!apiKey) {
-        alert('API Keyを入力してください');
-        return;
-    }
-    if (!validateApiKey(apiKey)) {
-        alert('API Keyの形式が正しくありません。有効なGemini API Keyを入力してください。');
-        return;
-    }
-    try {
-        saveApiKey(apiKey);
-        document.getElementById('settings-status').textContent = '設定を保存しました';
-        setTimeout(() => {
-            document.getElementById('settings-status').textContent = '';
-        }, 3000);
-    } catch (error) {
-        alert(error.message);
-    }
-});
-
-// 設定画面: API Keyクリアボタン
-document.getElementById('clear-api-key-btn').addEventListener('click', () => {
-    if (confirm('API Keyを削除しますか？画像インポート機能を使用するには再度設定が必要になります。')) {
-        clearApiKey();
-        document.getElementById('gemini-api-key-input').value = '';
-        document.getElementById('settings-status').textContent = 'API Keyを削除しました';
-        setTimeout(() => {
-            document.getElementById('settings-status').textContent = '';
-        }, 3000);
-    }
-});
 
 // 画像インポート機能
 let selectedImage = null;
@@ -724,20 +631,33 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
     let resizedCanvas = null;
 
     try {
-        // 赤字部分を抽出
-        updateImportStatus('赤字を検出中...');
-        redTextCanvas = extractRedText(selectedImage);
+        // 赤字部分を抽出（クライアントサイド処理はスキップし、Geminiに任せる）
+        // updateImportStatus('赤字を検出中...');
+        // redTextCanvas = extractRedText(selectedImage);
 
-        // 画像をリサイズ
-        resizedCanvas = resizeCanvas(redTextCanvas, GEMINI_API_CONFIG.maxImageSize);
+        // 画像をリサイズ（オリジナル画像をリサイズ）
+        const originalCanvas = document.createElement('canvas');
+        originalCanvas.width = selectedImage.width;
+        originalCanvas.height = selectedImage.height;
+        originalCanvas.getContext('2d').drawImage(selectedImage, 0, 0);
 
-        // OCRで文字認識
+        resizedCanvas = resizeCanvas(originalCanvas, GEMINI_API_CONFIG.maxImageSize);
+
+        // OCRで文字認識（JSON配列として取得）
         updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
-        const text = await performOCR(resizedCanvas);
+        const cardsData = await performOCR(resizedCanvas);
 
-        // テキストを解析してカードを作成
-        updateImportStatus('テキストを解析中...');
-        extractedCards = parseTextToCards(text);
+        // カテゴリを追加してカードを作成
+        updateImportStatus('カードを作成中...');
+        const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
+        const category = sanitizeInput(categoryRaw);
+
+        extractedCards = cardsData.map(card => ({
+            id: generateUniqueId(),
+            category: category,
+            question: sanitizeInput(card.question || ''),
+            answer: sanitizeInput(card.answer || '')
+        }));
 
         if (!extractedCards || extractedCards.length === 0) {
             updateImportStatus('赤字のテキストが見つかりませんでした。別の画像を試してください。');
@@ -826,11 +746,11 @@ function extractRedText(img) {
         // 濃い赤: RGB値の絶対的な閾値判定
         // 薄い赤: R値が他の色成分より相対的に高いかを判定
         const isDarkRed = r > RED_DETECTION_THRESHOLD.darkRed.r &&
-                          g < RED_DETECTION_THRESHOLD.darkRed.g &&
-                          b < RED_DETECTION_THRESHOLD.darkRed.b;
+            g < RED_DETECTION_THRESHOLD.darkRed.g &&
+            b < RED_DETECTION_THRESHOLD.darkRed.b;
         const isLightRed = r > RED_DETECTION_THRESHOLD.lightRed.r &&
-                           r > g * RED_DETECTION_THRESHOLD.lightRed.ratio &&
-                           r > b * RED_DETECTION_THRESHOLD.lightRed.ratio;
+            r > g * RED_DETECTION_THRESHOLD.lightRed.ratio &&
+            r > b * RED_DETECTION_THRESHOLD.lightRed.ratio;
         const isRed = isDarkRed || isLightRed;
 
         if (isRed) {
@@ -859,98 +779,32 @@ function extractRedText(img) {
  * @throws {Error} APIキー未設定、ネットワークエラー、APIエラー
  */
 async function performOCR(canvas) {
-    const apiKey = loadApiKey();
-    if (!apiKey) {
-        throw new Error('Gemini API Keyが設定されていません。設定画面から設定してください。');
-    }
-
     // キャンバスをbase64エンコード
-    const base64Image = canvas.toDataURL('image/png').split(',')[1];
+    const imageData = canvas.toDataURL('image/jpeg', 0.8);
 
-    // Gemini APIにリクエスト
-    updateImportStatus('Gemini APIで画像を解析中...');
+    // バックエンドAPIにリクエスト
+    updateImportStatus('画像を解析中...');
 
-    const response = await fetch(GEMINI_API_CONFIG.endpoint, {
+    const response = await fetch('/api/ocr', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey  // セキュリティ向上: URLではなくヘッダーでAPI keyを送信
+            'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            contents: [{
-                parts: [
-                    {
-                        text: GEMINI_API_CONFIG.prompt
-                    },
-                    {
-                        inline_data: {
-                            mime_type: 'image/png',
-                            data: base64Image
-                        }
-                    }
-                ]
-            }]
-        })
+        body: JSON.stringify({ image: imageData })
     });
 
     if (!response.ok) {
-        // レート制限エラーの特別処理
-        if (response.status === 429) {
-            throw new Error('APIのリクエスト上限に達しました。しばらく時間をおいてから再度お試しください。');
-        }
-
-        // 認証エラーの特別処理
-        if (response.status === 401 || response.status === 403) {
-            throw new Error('API Keyが無効です。設定画面で正しいAPI Keyを設定してください。');
-        }
-
-        let errorMessage = response.statusText;
-        try {
-            const errorData = await response.json();
-            errorMessage = errorData.error?.message || errorMessage;
-        } catch (e) {
-            // JSONパースエラーは無視してstatusTextを使用
-            console.error('Failed to parse error response:', e);
-        }
-        throw new Error(`Gemini API error: ${errorMessage}`);
+        const error = await response.json();
+        throw new Error(error.error || 'OCR処理に失敗しました');
     }
 
-    let data;
-    try {
-        data = await response.json();
-    } catch (e) {
-        throw new Error('Gemini APIからのレスポンスの解析に失敗しました。ネットワーク接続を確認してください。');
+    const data = await response.json();
+
+    if (data.text === 'NONE') {
+        throw new Error('赤字のテキストが見つかりませんでした');
     }
 
-    // レスポンスからテキストを抽出
-    // レスポンス構造の詳細バリデーション
-    if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
-        throw new Error('Gemini APIからのレスポンスが不正です（candidates配列が存在しません）。画像の内容を確認してください。');
-    }
-
-    const candidate = data.candidates[0];
-    if (!candidate?.content?.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
-        throw new Error('Gemini APIからのレスポンスが不正です（parts配列が存在しません）。画像の内容を確認してください。');
-    }
-
-    const textPart = candidate.content.parts[0];
-    if (!textPart?.text || typeof textPart.text !== 'string') {
-        throw new Error('Gemini APIからのレスポンスが不正です（テキストデータが存在しません）。画像の内容を確認してください。');
-    }
-
-    const extractedText = textPart.text;
-
-    // レスポンス内容のバリデーション
-    if (extractedText.trim().length === 0) {
-        throw new Error('APIから空のレスポンスが返されました。画像に認識可能なテキストがあるか確認してください。');
-    }
-
-    // 異常に大きなレスポンスをチェック（100KB以上）
-    if (extractedText.length > MAX_IMPORT_TEXT_LENGTH) {
-        throw new Error('レスポンスが大きすぎます。画像サイズを小さくしてください。');
-    }
-
-    return extractedText;
+    return data.text;
 }
 
 /**
