@@ -4,6 +4,8 @@
   "description": "フラッシュカード形式で学習できるWebアプリケーション",
   "main": "app.js",
   "scripts": {
+    "dev": "nodemon api/index.js",
+    "build": "echo 'No build step required'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -18,13 +20,16 @@
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.0",
-    "jest": "^29.5.0",
-    "jest-environment-jsdom": "^29.5.0"
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.5.0",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.1.4"
   },
   "jest": {
     "testEnvironment": "jsdom",
     "testMatch": [
-      "**/tests/**/*.test.js"
+      "**/tests/**/*.test.js",
+      "**/api/__tests__/**/*.test.js"
     ],
     "collectCoverageFrom": [
       "app.js",
@@ -42,5 +47,12 @@
     "setupFilesAfterEnv": [
       "<rootDir>/tests/setup.js"
     ]
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0"
   }
 }
