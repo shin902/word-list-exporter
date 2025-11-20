@@ -643,13 +643,21 @@ document.getElementById('process-image-btn').addEventListener('click', async () 
 
         resizedCanvas = resizeCanvas(originalCanvas, GEMINI_API_CONFIG.maxImageSize);
 
-        // OCRで文字認識
+        // OCRで文字認識（JSON配列として取得）
         updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
-        const text = await performOCR(resizedCanvas);
+        const cardsData = await performOCR(resizedCanvas);
 
-        // テキストを解析してカードを作成
-        updateImportStatus('テキストを解析中...');
-        extractedCards = parseTextToCards(text);
+        // カテゴリを追加してカードを作成
+        updateImportStatus('カードを作成中...');
+        const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
+        const category = sanitizeInput(categoryRaw);
+
+        extractedCards = cardsData.map(card => ({
+            id: generateUniqueId(),
+            category: category,
+            question: sanitizeInput(card.question || ''),
+            answer: sanitizeInput(card.answer || '')
+        }));
 
         if (!extractedCards || extractedCards.length === 0) {
             updateImportStatus('赤字のテキストが見つかりませんでした。別の画像を試してください。');
