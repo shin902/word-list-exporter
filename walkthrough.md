@@ -12,7 +12,9 @@ This document summarizes the changes made to implement the backend API for the W
 
 ### 2. OCR Endpoint
 - Implemented `/api/ocr` endpoint in `api/routes/ocr.js`.
-- Integrated Gemini API using `gemini-2.5-flash` model in `api/utils/gemini.js`.
+- Implemented `/api/ocr` endpoint in `api/routes/ocr.js`.
+- Integrated Gemini API using `gemini-2.0-flash` model in `api/utils/gemini.js` (switched from 2.5 to resolve 503 errors).
+- Optimized prompt to ensure consistent "Question : Answer" output format.
 - Added rate limiting and error handling.
 
 ### 3. Frontend Integration
