@@ -3,6 +3,41 @@
  * Tests the complete flow from image selection to card creation
  */
 
+const {
+    parseTextToCards,
+    // performOCR is not exported by app.js.
+    // app.js defines performOCR for frontend, but it calls fetch('/api/ocr').
+    // The test seems to assume performOCR is available globally or calls the client-side function.
+    // However, in app.js, performOCR is defined as:
+    /*
+    async function performOCR(canvas) {
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        const response = await fetch('/api/ocr', ...);
+        ...
+    }
+    */
+    // It does NOT call Gemini API directly from client anymore in the current implementation (it calls backend).
+    // The test code mocks `fetch` to return Gemini API structure (`candidates`, etc.), which suggests the test expects `performOCR` to call Gemini directly OR the backend to return that structure.
+    // BUT, `api/routes/ocr.js` returns:
+    /*
+    res.json({
+        success: true,
+        text: result
+    });
+    */
+    // And `performOCR` in `app.js` parses that:
+    /*
+    const data = await response.json();
+    return data.text;
+    */
+    // So the test is mocking the WRONG response structure if it's testing the client-side `performOCR`.
+    // The test is mocking `fetch` to return Gemini structure, but `performOCR` calls `/api/ocr`.
+    // AND `performOCR` is not exported in my previous `app.js` edit.
+    // I need to export `performOCR` from `app.js`.
+    // AND I need to fix the test expectations to match what `performOCR` expects from `/api/ocr`.
+    performOCR
+} = require('../../app');
+
 describe('OCR Workflow Integration', () => {
     let mockFetch;
 
@@ -14,28 +49,25 @@ describe('OCR Workflow Integration', () => {
             <div id="import-preview"></div>
         `;
 
-        // Mock fetch for Gemini API
-        mockFetch = jest.spyOn(global, 'fetch');
+        // Mock fetch
+        global.fetch = jest.fn();
+        mockFetch = global.fetch;
+
+        // Mock canvas.toDataURL since jsdom canvas implementation might be limited
+        HTMLCanvasElement.prototype.toDataURL = jest.fn(() => 'data:image/jpeg;base64,mockdata');
     });
 
     afterEach(() => {
-        mockFetch.mockRestore();
+        jest.restoreAllMocks();
     });
 
     describe('Successful OCR Flow', () => {
         test('processes image and creates cards from API response', async () => {
             // Setup
-            const mockApiKey = 'AIza' + 'x'.repeat(35);
-            localStorage.setItem('GEMINI_API_KEY', mockApiKey);
-
+            // performOCR calls /api/ocr, which returns { success: true, text: '...' }
             const mockResponse = {
-                candidates: [{
-                    content: {
-                        parts: [{
-                            text: 'apple→りんご\nbanana→バナナ\norange→オレンジ'
-                        }]
-                    }
-                }]
+                success: true,
+                text: 'apple→りんご\nbanana→バナナ\norange→オレンジ'
             };
 
             mockFetch.mockResolvedValueOnce({
@@ -62,17 +94,9 @@ describe('OCR Workflow Integration', () => {
         });
 
         test('handles multiple text formats in single OCR response', async () => {
-            const mockApiKey = 'AIza' + 'x'.repeat(35);
-            localStorage.setItem('GEMINI_API_KEY', mockApiKey);
-
             const mockResponse = {
-                candidates: [{
-                    content: {
-                        parts: [{
-                            text: 'apple→りんご\nbanana バナナ\norange:オレンジ\ngrape-ぶどう'
-                        }]
-                    }
-                }]
+                success: true,
+                text: 'apple→りんご\nbanana バナナ\norange:オレンジ\ngrape-ぶどう'
             };
 
             mockFetch.mockResolvedValueOnce({
@@ -90,230 +114,67 @@ describe('OCR Workflow Integration', () => {
     });
 
     describe('Error Handling', () => {
-        test('throws error when API key is missing', async () => {
-            const canvas = document.createElement('canvas');
+        // Note: performOCR in app.js does NOT check for GEMINI_API_KEY anymore because it delegates to backend.
+        // So tests checking for "Gemini API Keyが設定されていません" are invalid for the current client-side code.
+        // I will remove authentication tests that assume client-side key handling.
 
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'Gemini API Keyが設定されていません'
-            );
-        });
-
-        test('handles rate limit error (429)', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
+        test('handles backend error (400/500)', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
-                status: 429,
-                statusText: 'Too Many Requests'
+                status: 400,
+                json: async () => ({ error: 'Invalid image' })
             });
 
             const canvas = document.createElement('canvas');
 
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'APIのリクエスト上限に達しました'
-            );
+            await expect(performOCR(canvas)).rejects.toThrow('Invalid image');
         });
 
-        test('handles authentication error (401)', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'invalid_key');
-
-            mockFetch.mockResolvedValueOnce({
-                ok: false,
-                status: 401,
-                statusText: 'Unauthorized'
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'API Keyが無効です'
-            );
-        });
-
-        test('handles malformed API response - missing candidates', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
+        test('handles "NONE" response', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({}) // No candidates
+                json: async () => ({ text: 'NONE' })
             });
 
             const canvas = document.createElement('canvas');
 
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'candidates配列が存在しません'
-            );
-        });
-
-        test('handles malformed API response - empty candidates array', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({ candidates: [] })
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'candidates配列が存在しません'
-            );
-        });
-
-        test('handles malformed API response - missing parts', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    candidates: [{
-                        content: {}
-                    }]
-                })
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'parts配列が存在しません'
-            );
-        });
-
-        test('handles malformed API response - missing text', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    candidates: [{
-                        content: {
-                            parts: [{ noText: 'here' }]
-                        }
-                    }]
-                })
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'テキストデータが存在しません'
-            );
-        });
-
-        test('handles empty text response', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    candidates: [{
-                        content: {
-                            parts: [{ text: '   ' }]
-                        }
-                    }]
-                })
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'APIから空のレスポンスが返されました'
-            );
-        });
-
-        test('handles oversized response', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
-            const largeText = 'a'.repeat(100001);
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    candidates: [{
-                        content: {
-                            parts: [{ text: largeText }]
-                        }
-                    }]
-                })
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'レスポンスが大きすぎます'
-            );
+            await expect(performOCR(canvas)).rejects.toThrow('赤字のテキストが見つかりませんでした');
         });
 
         test('handles network error', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
             mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
             const canvas = document.createElement('canvas');
 
             await expect(performOCR(canvas)).rejects.toThrow('Network error');
         });
-
-        test('handles invalid JSON response', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => {
-                    throw new Error('Invalid JSON');
-                }
-            });
-
-            const canvas = document.createElement('canvas');
-
-            await expect(performOCR(canvas)).rejects.toThrow(
-                'レスポンスの解析に失敗しました'
-            );
-        });
     });
 
     describe('API Request Format', () => {
-        test('sends correct headers with API key', async () => {
-            const mockApiKey = 'AIza' + 'x'.repeat(35);
-            localStorage.setItem('GEMINI_API_KEY', mockApiKey);
-
+        test('sends correct headers', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({
-                    candidates: [{
-                        content: {
-                            parts: [{ text: 'test' }]
-                        }
-                    }]
-                })
+                json: async () => ({ success: true, text: 'test' })
             });
 
             const canvas = document.createElement('canvas');
             await performOCR(canvas);
 
             expect(mockFetch).toHaveBeenCalledWith(
-                expect.any(String),
+                '/api/ocr',
                 expect.objectContaining({
                     method: 'POST',
-                    headers: expect.objectContaining({
-                        'Content-Type': 'application/json',
-                        'x-goog-api-key': mockApiKey
-                    })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 })
             );
         });
 
-        test('sends base64 encoded image', async () => {
-            localStorage.setItem('GEMINI_API_KEY', 'AIza' + 'x'.repeat(35));
-
+        test('sends base64 encoded image in body', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({
-                    candidates: [{
-                        content: {
-                            parts: [{ text: 'test' }]
-                        }
-                    }]
-                })
+                json: async () => ({ success: true, text: 'test' })
             });
 
             const canvas = document.createElement('canvas');
@@ -322,11 +183,8 @@ describe('OCR Workflow Integration', () => {
             const callArgs = mockFetch.mock.calls[0][1];
             const body = JSON.parse(callArgs.body);
 
-            expect(body.contents[0].parts).toHaveLength(2);
-            expect(body.contents[0].parts[0]).toHaveProperty('text');
-            expect(body.contents[0].parts[1]).toHaveProperty('inline_data');
-            expect(body.contents[0].parts[1].inline_data).toHaveProperty('mime_type', 'image/png');
-            expect(body.contents[0].parts[1].inline_data).toHaveProperty('data');
+            expect(body).toHaveProperty('image');
+            expect(body.image).toContain('data:image/jpeg;base64');
         });
     });
 });

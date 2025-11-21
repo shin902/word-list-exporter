@@ -3,6 +3,12 @@
  * Tests the migration of legacy cards without IDs to the new ID-based system
  */
 
+const {
+    loadCards,
+    deleteCard,
+    createCard
+} = require('../../app');
+
 describe('Data Migration Integration', () => {
     beforeEach(() => {
         localStorage.clear();
