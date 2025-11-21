@@ -81,6 +81,7 @@ function loadCards() {
         // レガシーカード（IDがない）を移行
         let needsMigration = false;
         const migratedCards = parsed.map(card => {
+            if (!card) return card; // Handle null/undefined
             if (!card.id) {
                 needsMigration = true;
                 return {
@@ -218,12 +219,13 @@ function escapeHtmlAttr(text) {
 function sanitizeInput(text, maxLength = 1000) {
     if (!text) return '';
     // 制御文字を除去し、最大長を制限
-    // \x00-\x1F: C0制御文字（ASCII 0-31）
+    // \x00-\x08, \x0B, \x0C, \x0E-\x1F: C0制御文字（改行・タブを除く）
     // \x7F: DEL文字
     // \x80-\x9F: C1制御文字（Unicode 128-159）
     // \u2028: Line Separator
     // \u2029: Paragraph Separator
-    return text.replace(/[\x00-\x1F\x7F-\x9F\u2028\u2029]/g, '')
+    // 改行(\n, \r)とタブ(\t)は許可する
+    return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u2028\u2029]/g, '')
         .trim()
         .substring(0, maxLength);
 }
@@ -265,19 +267,25 @@ function initHomeView() {
 }
 
 // ホーム画面: 学習開始ボタン
-document.getElementById('start-quiz-btn').addEventListener('click', () => {
-    const cards = loadCards();
-    if (cards.length === 0) {
-        alert('まずは単語を登録してください');
-    } else {
-        startQuiz();
-    }
-});
+const startQuizBtn = document.getElementById('start-quiz-btn');
+if (startQuizBtn) {
+    startQuizBtn.addEventListener('click', () => {
+        const cards = loadCards();
+        if (cards.length === 0) {
+            alert('まずは単語を登録してください');
+        } else {
+            startQuiz();
+        }
+    });
+}
 
 // ホーム画面: 一覧表示ボタン
-document.getElementById('show-list-btn').addEventListener('click', () => {
-    renderListView();
-});
+const showListBtn = document.getElementById('show-list-btn');
+if (showListBtn) {
+    showListBtn.addEventListener('click', () => {
+        renderListView();
+    });
+}
 
 
 
@@ -291,39 +299,45 @@ function initAddView() {
 }
 
 // 追加画面: キャンセルボタン
-document.getElementById('cancel-add-btn').addEventListener('click', () => {
-    renderListView();
-});
+const cancelAddBtn = document.getElementById('cancel-add-btn');
+if (cancelAddBtn) {
+    cancelAddBtn.addEventListener('click', () => {
+        renderListView();
+    });
+}
 
 // 追加画面: 保存ボタン
-document.getElementById('save-card-btn').addEventListener('click', () => {
-    const category = sanitizeInput(document.getElementById('category-input').value.trim());
-    const question = sanitizeInput(document.getElementById('question-input').value.trim());
-    const answer = sanitizeInput(document.getElementById('answer-input').value.trim());
+const saveCardBtn = document.getElementById('save-card-btn');
+if (saveCardBtn) {
+    saveCardBtn.addEventListener('click', () => {
+        const category = sanitizeInput(document.getElementById('category-input').value.trim());
+        const question = sanitizeInput(document.getElementById('question-input').value.trim());
+        const answer = sanitizeInput(document.getElementById('answer-input').value.trim());
 
-    if (!question || !answer) {
-        alert('問題と解答を入力してください');
-        return;
-    }
+        if (!question || !answer) {
+            alert('問題と解答を入力してください');
+            return;
+        }
 
-    // カテゴリが空の場合はデフォルト値を設定
-    const finalCategory = category || '未分類';
+        // カテゴリが空の場合はデフォルト値を設定
+        const finalCategory = category || '未分類';
 
-    try {
-        createCard(finalCategory, question, answer);
-        alert('保存しました');
+        try {
+            createCard(finalCategory, question, answer);
+            alert('保存しました');
 
-        // 入力欄をクリア
-        document.getElementById('category-input').value = '';
-        document.getElementById('question-input').value = '';
-        document.getElementById('answer-input').value = '';
+            // 入力欄をクリア
+            document.getElementById('category-input').value = '';
+            document.getElementById('question-input').value = '';
+            document.getElementById('answer-input').value = '';
 
-        // フォーカスをカテゴリ入力欄に戻す
-        document.getElementById('category-input').focus();
-    } catch (error) {
-        alert('保存に失敗しました: ' + error.message);
-    }
-});
+            // フォーカスをカテゴリ入力欄に戻す
+            document.getElementById('category-input').focus();
+        } catch (error) {
+            alert('保存に失敗しました: ' + error.message);
+        }
+    });
+}
 
 // 単語カード一覧画面の表示
 function renderListView() {
@@ -395,19 +409,28 @@ function renderListView() {
 }
 
 // 一覧画面: 戻るボタン
-document.getElementById('back-from-list-btn').addEventListener('click', () => {
-    initHomeView();
-});
+const backFromListBtn = document.getElementById('back-from-list-btn');
+if (backFromListBtn) {
+    backFromListBtn.addEventListener('click', () => {
+        initHomeView();
+    });
+}
 
 // 一覧画面: 追加ボタン
-document.getElementById('add-from-list-btn').addEventListener('click', () => {
-    initAddView();
-});
+const addFromListBtn = document.getElementById('add-from-list-btn');
+if (addFromListBtn) {
+    addFromListBtn.addEventListener('click', () => {
+        initAddView();
+    });
+}
 
 // 一覧画面: インポートボタン
-document.getElementById('import-from-list-btn').addEventListener('click', () => {
-    initImportView();
-});
+const importFromListBtn = document.getElementById('import-from-list-btn');
+if (importFromListBtn) {
+    importFromListBtn.addEventListener('click', () => {
+        initImportView();
+    });
+}
 
 // 学習画面の変数
 let quizWordArray = [];
@@ -449,27 +472,33 @@ function displayCurrentCard() {
 }
 
 // 学習画面: アクションボタン
-document.getElementById('quiz-action-btn').addEventListener('click', () => {
-    if (!isAnswerShown) {
-        // 解答を表示
-        const currentCard = quizWordArray[currentIndex];
-        document.getElementById('answer-text').innerHTML = parseSubscriptSuperscript(currentCard.answer);
-        document.getElementById('answer-area').classList.remove('hidden');
-        document.getElementById('quiz-action-btn').textContent = '次へ';
-        isAnswerShown = true;
-    } else {
-        // 次の問題へ
-        currentIndex++;
-        displayCurrentCard();
-    }
-});
+const quizActionBtn = document.getElementById('quiz-action-btn');
+if (quizActionBtn) {
+    quizActionBtn.addEventListener('click', () => {
+        if (!isAnswerShown) {
+            // 解答を表示
+            const currentCard = quizWordArray[currentIndex];
+            document.getElementById('answer-text').innerHTML = parseSubscriptSuperscript(currentCard.answer);
+            document.getElementById('answer-area').classList.remove('hidden');
+            document.getElementById('quiz-action-btn').textContent = '次へ';
+            isAnswerShown = true;
+        } else {
+            // 次の問題へ
+            currentIndex++;
+            displayCurrentCard();
+        }
+    });
+}
 
 // 学習画面: 終了ボタン
-document.getElementById('quit-quiz-btn').addEventListener('click', () => {
-    if (confirm('学習を終了してホームに戻りますか?')) {
-        initHomeView();
-    }
-});
+const quitQuizBtn = document.getElementById('quit-quiz-btn');
+if (quitQuizBtn) {
+    quitQuizBtn.addEventListener('click', () => {
+        if (confirm('学習を終了してホームに戻りますか?')) {
+            initHomeView();
+        }
+    });
+}
 
 // 完了画面を表示
 function showCompletionView() {
@@ -477,9 +506,12 @@ function showCompletionView() {
 }
 
 // 完了画面: ホームに戻るボタン
-document.getElementById('back-to-home-btn').addEventListener('click', () => {
-    initHomeView();
-});
+const backToHomeBtn = document.getElementById('back-to-home-btn');
+if (backToHomeBtn) {
+    backToHomeBtn.addEventListener('click', () => {
+        initHomeView();
+    });
+}
 
 
 
@@ -547,27 +579,33 @@ function initImportView() {
 }
 
 // インポート画面: キャンセルボタン
-document.getElementById('cancel-import-btn').addEventListener('click', () => {
-    renderListView();
-});
+const cancelImportBtn = document.getElementById('cancel-import-btn');
+if (cancelImportBtn) {
+    cancelImportBtn.addEventListener('click', () => {
+        renderListView();
+    });
+}
 
 // インポート画面: 画像選択
-document.getElementById('image-input').addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+const imageInput = document.getElementById('image-input');
+if (imageInput) {
+    imageInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-            selectedImage = img;
-            displayImagePreview(img);
-            document.getElementById('process-image-btn').disabled = false;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                selectedImage = img;
+                displayImagePreview(img);
+                document.getElementById('process-image-btn').disabled = false;
+            };
+            img.src = e.target.result;
         };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-});
+        reader.readAsDataURL(file);
+    });
+}
 
 // 画像プレビューを表示
 function displayImagePreview(img) {
@@ -610,102 +648,105 @@ function resizeCanvas(sourceCanvas, maxSize) {
 }
 
 // 赤字を抽出してインポート
-document.getElementById('process-image-btn').addEventListener('click', async () => {
-    if (!selectedImage) return;
+const processImageBtn = document.getElementById('process-image-btn');
+if (processImageBtn) {
+    processImageBtn.addEventListener('click', async () => {
+        if (!selectedImage) return;
 
-    const processBtn = document.getElementById('process-image-btn');
-    const previewDiv = document.getElementById('import-preview');
+        const processBtn = document.getElementById('process-image-btn');
+        const previewDiv = document.getElementById('import-preview');
 
-    // レース条件防止: フラグチェックとボタン無効化をアトミックに実行
-    // ボタンが既に無効化されている場合は処理中と判断
-    if (processBtn.disabled || isProcessingOCR) return;
+        // レース条件防止: フラグチェックとボタン無効化をアトミックに実行
+        // ボタンが既に無効化されている場合は処理中と判断
+        if (processBtn.disabled || isProcessingOCR) return;
 
-    // フラグとボタンを即座に設定（これより先は1つの実行のみ）
-    isProcessingOCR = true;
-    processBtn.disabled = true;
+        // フラグとボタンを即座に設定（これより先は1つの実行のみ）
+        isProcessingOCR = true;
+        processBtn.disabled = true;
 
-    updateImportStatus('画像を処理中...');
-    previewDiv.innerHTML = '';
-
-    let redTextCanvas = null;
-    let resizedCanvas = null;
-
-    try {
-        // 赤字部分を抽出（クライアントサイド処理はスキップし、Geminiに任せる）
-        // updateImportStatus('赤字を検出中...');
-        // redTextCanvas = extractRedText(selectedImage);
-
-        // 画像をリサイズ（オリジナル画像をリサイズ）
-        const originalCanvas = document.createElement('canvas');
-        originalCanvas.width = selectedImage.width;
-        originalCanvas.height = selectedImage.height;
-        originalCanvas.getContext('2d').drawImage(selectedImage, 0, 0);
-
-        resizedCanvas = resizeCanvas(originalCanvas, GEMINI_API_CONFIG.maxImageSize);
-
-        // OCRで文字認識（JSON配列として取得）
-        updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
-        const cardsData = await performOCR(resizedCanvas);
-
-        // カテゴリを追加してカードを作成
-        updateImportStatus('カードを作成中...');
-        const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
-        const category = sanitizeInput(categoryRaw);
-
-        extractedCards = cardsData.map(card => ({
-            id: generateUniqueId(),
-            category: category,
-            question: sanitizeInput(card.question || ''),
-            answer: sanitizeInput(card.answer || '')
-        }));
-
-        if (!extractedCards || extractedCards.length === 0) {
-            updateImportStatus('赤字のテキストが見つかりませんでした。別の画像を試してください。');
-            return;
-        }
-
-        // カードデータの妥当性チェック
-        const validCards = extractedCards.filter(card =>
-            card && card.question && card.answer && card.category
-        );
-
-        if (validCards.length === 0) {
-            updateImportStatus('有効なカードデータが見つかりませんでした。別の画像を試してください。');
-            extractedCards = [];
-            return;
-        }
-
-        extractedCards = validCards;
-
-        // プレビューを表示
-        displayImportPreview(extractedCards);
-        updateImportStatus(`${extractedCards.length}件のカードを検出しました。確認して保存してください。`);
-
-        // 保存ボタンを表示
-        const saveBtn = document.createElement('button');
-        saveBtn.className = 'primary-button';
-        saveBtn.textContent = 'すべて保存';
-        saveBtn.style.marginTop = '20px';
-        saveBtn.addEventListener('click', () => {
-            saveExtractedCards();
-        });
-        previewDiv.appendChild(saveBtn);
-
-    } catch (error) {
-        console.error('処理エラー:', error);
-        updateImportStatus('エラーが発生しました: ' + error.message);
-        // エラー時のクリーンアップ
+        updateImportStatus('画像を処理中...');
         previewDiv.innerHTML = '';
-        extractedCards = [];
-    } finally {
-        // メモリリーク防止: Canvasをクリーンアップ
-        cleanupCanvas(redTextCanvas);
-        cleanupCanvas(resizedCanvas);
 
-        isProcessingOCR = false;
-        processBtn.disabled = false; // ボタンを再度有効化
-    }
-});
+        let redTextCanvas = null;
+        let resizedCanvas = null;
+
+        try {
+            // 赤字部分を抽出（クライアントサイド処理はスキップし、Geminiに任せる）
+            // updateImportStatus('赤字を検出中...');
+            // redTextCanvas = extractRedText(selectedImage);
+
+            // 画像をリサイズ（オリジナル画像をリサイズ）
+            const originalCanvas = document.createElement('canvas');
+            originalCanvas.width = selectedImage.width;
+            originalCanvas.height = selectedImage.height;
+            originalCanvas.getContext('2d').drawImage(selectedImage, 0, 0);
+
+            resizedCanvas = resizeCanvas(originalCanvas, GEMINI_API_CONFIG.maxImageSize);
+
+            // OCRで文字認識（JSON配列として取得）
+            updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
+            const cardsData = await performOCR(resizedCanvas);
+
+            // カテゴリを追加してカードを作成
+            updateImportStatus('カードを作成中...');
+            const categoryRaw = document.getElementById('import-category-input').value.trim() || '英単語';
+            const category = sanitizeInput(categoryRaw);
+
+            extractedCards = cardsData.map(card => ({
+                id: generateUniqueId(),
+                category: category,
+                question: sanitizeInput(card.question || ''),
+                answer: sanitizeInput(card.answer || '')
+            }));
+
+            if (!extractedCards || extractedCards.length === 0) {
+                updateImportStatus('赤字のテキストが見つかりませんでした。別の画像を試してください。');
+                return;
+            }
+
+            // カードデータの妥当性チェック
+            const validCards = extractedCards.filter(card =>
+                card && card.question && card.answer && card.category
+            );
+
+            if (validCards.length === 0) {
+                updateImportStatus('有効なカードデータが見つかりませんでした。別の画像を試してください。');
+                extractedCards = [];
+                return;
+            }
+
+            extractedCards = validCards;
+
+            // プレビューを表示
+            displayImportPreview(extractedCards);
+            updateImportStatus(`${extractedCards.length}件のカードを検出しました。確認して保存してください。`);
+
+            // 保存ボタンを表示
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'primary-button';
+            saveBtn.textContent = 'すべて保存';
+            saveBtn.style.marginTop = '20px';
+            saveBtn.addEventListener('click', () => {
+                saveExtractedCards();
+            });
+            previewDiv.appendChild(saveBtn);
+
+        } catch (error) {
+            console.error('処理エラー:', error);
+            updateImportStatus('エラーが発生しました: ' + error.message);
+            // エラー時のクリーンアップ
+            previewDiv.innerHTML = '';
+            extractedCards = [];
+        } finally {
+            // メモリリーク防止: Canvasをクリーンアップ
+            cleanupCanvas(redTextCanvas);
+            cleanupCanvas(resizedCanvas);
+
+            isProcessingOCR = false;
+            processBtn.disabled = false; // ボタンを再度有効化
+        }
+    });
+}
 
 // Canvasクリーンアップヘルパー関数
 function cleanupCanvas(canvas) {
@@ -1003,3 +1044,21 @@ function saveExtractedCards() {
 document.addEventListener('DOMContentLoaded', () => {
     initHomeView();
 });
+
+// For Node.js testing environment
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        parseTextToCards,
+        loadCards,
+        saveCards,
+        createCard,
+        generateUniqueId,
+        deleteCard,
+        escapeHtml,
+        escapeHtmlAttr,
+        sanitizeInput,
+        parseSubscriptSuperscript,
+        debounce,
+        performOCR
+    };
+}
