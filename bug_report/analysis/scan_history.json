@@ -1,0 +1,23 @@
+{
+  "scan_id": "scan-20240522-001",
+  "timestamp": "2024-05-22T10:35:00+09:00",
+  "iterations": 2,
+  "total_findings": 2,
+  "status": "completed",
+  "history": [
+    {
+      "iteration": 1,
+      "new_findings": 2,
+      "new_chains": 0,
+      "findings": ["vuln-001", "vuln-002"]
+    },
+    {
+      "iteration": 2,
+      "new_findings": 0,
+      "new_chains": 0,
+      "findings": []
+    }
+  ],
+  "files_scanned": 9,
+  "final_state": "stable"
+}

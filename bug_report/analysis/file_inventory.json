@@ -1,0 +1,11 @@
+[
+  "app.js",
+  "index.html",
+  "package.json",
+  "vercel.json",
+  "api/config.js",
+  "api/index.js",
+  "api/routes/ocr.js",
+  "api/utils/gemini.js",
+  "api/middleware/errorHandler.js"
+]
