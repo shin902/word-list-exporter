@@ -43,6 +43,9 @@ describe('POST /api/ocr', () => {
         expect(response.body.error).toBe('画像データの解析に失敗しました');
     });
 
+    // Note: Strict base64 validation was removed to prevent ReDoS attacks on large payloads
+    // It now relies on performOCR or decoding to handle invalid data
+    /*
     it('should return error for invalid base64 characters', async () => {
         const response = await request(app)
             .post('/api/ocr')
@@ -51,6 +54,7 @@ describe('POST /api/ocr', () => {
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('無効なBase64データです');
     });
+    */
 
     it('should accept base64 data with spaces (RFC 4648 compliant)', async () => {
         const mockText = '問題:答え';

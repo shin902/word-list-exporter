@@ -3,6 +3,10 @@
  * This file is run before each test file
  */
 
+const { TextEncoder, TextDecoder } = require('util');
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+
 // Mock localStorage for testing
 const localStorageMock = (() => {
     let store = {};

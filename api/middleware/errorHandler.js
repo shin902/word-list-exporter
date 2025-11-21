@@ -17,6 +17,13 @@ function errorHandler(err, req, res, next) {
         }
     }
 
+    // body-parserなどのステータスコード付きエラーの処理
+    if (err.status || err.statusCode) {
+        return res.status(err.status || err.statusCode).json({
+            error: err.message || 'リクエストエラーが発生しました。'
+        });
+    }
+
     // デフォルトエラー
     res.status(500).json({
         error: 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
