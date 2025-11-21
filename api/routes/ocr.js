@@ -32,6 +32,17 @@ router.post('/', limiter, async (req, res, next) => {
             return res.status(400).json({ error: '画像データの解析に失敗しました' });
         }
 
+        // Base64文字列のサイズ制限（例: 10MB）
+        const MAX_BASE64_SIZE = 10 * 1024 * 1024;
+        if (base64Data.length > MAX_BASE64_SIZE) {
+            return res.status(413).json({ error: '画像データが大きすぎます' });
+        }
+
+        // Base64形式の検証
+        if (!/^[A-Za-z0-9+/\s]*={0,2}$/.test(base64Data)) {
+            return res.status(400).json({ error: '無効なBase64データです' });
+        }
+
         // OCR実行
         const result = await performOCR(base64Data);
 
