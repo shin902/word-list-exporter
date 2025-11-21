@@ -1,7 +1,7 @@
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-require('dotenv').config();
+require('./config');
 
 const ocrRouter = require('./routes/ocr');
 const errorHandler = require('./middleware/errorHandler');
@@ -11,9 +11,10 @@ const app = express();
 // セキュリティ
 app.use(helmet());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['POST'],
-    allowedHeaders: ['Content-Type']
+    origin: process.env.FRONTEND_URL || false,
+    methods: ['POST', 'GET'],
+    allowedHeaders: ['Content-Type'],
+    credentials: false
 }));
 
 // ボディパーサー（画像サイズを考慮）
