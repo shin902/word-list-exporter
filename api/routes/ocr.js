@@ -1,15 +1,30 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { RedisStore } = require('rate-limit-redis');
+const Redis = require('ioredis');
 const { performOCR } = require('../utils/gemini');
 
 const router = express.Router();
 
+// Redisクライアントの初期化（環境変数が設定されている場合）
+const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
+let store;
+
+if (redisUrl) {
+    const client = new Redis(redisUrl);
+    store = new RedisStore({
+        sendCommand: (...args) => client.call(...args),
+    });
+}
+
 // レート制限: 1時間あたり100リクエスト
-// 注意: VercelなどのServerless環境ではメモリ上のストアはリクエスト毎にリセットされる可能性があるため、
-// 厳密な制限にはRedisなどの外部ストアが必要です。今回は簡易的な実装とします。
+// Redisが設定されている場合は外部ストアを使用し、そうでない場合はメモリ（デフォルト）を使用
 const limiter = rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: store,
     message: { error: 'レート制限に達しました。1時間後に再試行してください。' }
 });
 
