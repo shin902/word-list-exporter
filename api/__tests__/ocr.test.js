@@ -43,6 +43,15 @@ describe('POST /api/ocr', () => {
         expect(response.body.error).toBe('画像データの解析に失敗しました');
     });
 
+    it('should return error for invalid base64 characters', async () => {
+        const response = await request(app)
+            .post('/api/ocr')
+            .send({ image: 'data:image/jpeg;base64,invalid@base64' });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('無効なBase64データです');
+    });
+
     it('should return success with text when OCR is successful', async () => {
         const mockText = '問題:答え';
         performOCR.mockResolvedValue(mockText);
