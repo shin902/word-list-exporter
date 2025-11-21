@@ -3,6 +3,13 @@
  * Run these tests using a test framework like Jest or Mocha
  */
 
+const {
+    parseTextToCards,
+    loadCards,
+    deleteCard,
+    // Helper functions might be needed if not globally mocked
+} = require('../../app');
+
 describe('parseTextToCards', () => {
     // Mock DOM elements needed by parseTextToCards
     beforeEach(() => {
