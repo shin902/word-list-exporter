@@ -15,17 +15,26 @@ if (redisUrl) {
     store = new RedisStore({
         sendCommand: (...args) => client.call(...args),
     });
+} else if (process.env.NODE_ENV === 'production') {
+    console.warn('WARNING: Redis is not configured in production environment. Rate limiting will be ineffective across multiple instances (Serverless). Enforcing strict local limits.');
 }
 
-// レート制限: 1時間あたり100リクエスト
-// Redisが設定されている場合は外部ストアを使用し、そうでない場合はメモリ（デフォルト）を使用
+// レート制限の設定
+// Redisが設定されている場合は外部ストアを使用し、標準的な制限（100リクエスト/時間）を適用
+// Redisが設定されていない場合（特にProduction環境）、Serverless環境でのバイパスを防ぐため
+// 極端に厳しい制限（1リクエスト/時間/インスタンス）を適用するか、管理者への警告とする。
+const limitMax = store ? 100 : (process.env.NODE_ENV === 'production' ? 1 : 100);
+const limitMessage = store
+    ? 'レート制限に達しました。1時間後に再試行してください。'
+    : 'Security Warning: Redis is not configured. Rate limit exceeded for this instance.';
+
 const limiter = rateLimit({
     windowMs: 60 * 60 * 1000,
-    max: 100,
+    max: limitMax,
     standardHeaders: true,
     legacyHeaders: false,
     store: store,
-    message: { error: 'レート制限に達しました。1時間後に再試行してください。' }
+    message: { error: limitMessage }
 });
 
 router.post('/', limiter, async (req, res, next) => {
