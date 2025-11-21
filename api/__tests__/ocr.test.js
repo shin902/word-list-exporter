@@ -52,6 +52,63 @@ describe('POST /api/ocr', () => {
         expect(response.body.error).toBe('無効なBase64データです');
     });
 
+    it('should accept base64 data with spaces (RFC 4648 compliant)', async () => {
+        const mockText = '問題:答え';
+        performOCR.mockResolvedValue(mockText);
+
+        const response = await request(app)
+            .post('/api/ocr')
+            .send({ image: 'data:image/jpeg;base64,valid base64 data' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.text).toBe(mockText);
+        // Verify whitespace is stripped before calling performOCR
+        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+    });
+
+    it('should accept base64 data with newlines', async () => {
+        const mockText = '問題:答え';
+        performOCR.mockResolvedValue(mockText);
+
+        const response = await request(app)
+            .post('/api/ocr')
+            .send({ image: 'data:image/jpeg;base64,valid\nbase64\ndata' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.text).toBe(mockText);
+        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+    });
+
+    it('should accept base64 data with tabs', async () => {
+        const mockText = '問題:答え';
+        performOCR.mockResolvedValue(mockText);
+
+        const response = await request(app)
+            .post('/api/ocr')
+            .send({ image: 'data:image/jpeg;base64,valid\tbase64\tdata' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.text).toBe(mockText);
+        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+    });
+
+    it('should accept base64 data with mixed whitespace', async () => {
+        const mockText = '問題:答え';
+        performOCR.mockResolvedValue(mockText);
+
+        const response = await request(app)
+            .post('/api/ocr')
+            .send({ image: 'data:image/jpeg;base64,valid \n\tbase64 \r\ndata' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.text).toBe(mockText);
+        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+    });
+
     it('should return success with text when OCR is successful', async () => {
         const mockText = '問題:答え';
         performOCR.mockResolvedValue(mockText);
