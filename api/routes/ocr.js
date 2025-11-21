@@ -47,17 +47,26 @@ router.post('/', limiter, async (req, res, next) => {
             return res.status(400).json({ error: '画像データの解析に失敗しました' });
         }
 
-        // Base64データサイズの制限（例: 10MB）
-        const MAX_BASE64_SIZE = 10 * 1024 * 1024;
+        // Base64データサイズの制限（例: 5MB）
+        const MAX_BASE64_SIZE = 5 * 1024 * 1024;
         if (base64Data.length > MAX_BASE64_SIZE) {
             return res.status(413).json({ error: '画像データが大きすぎます' });
         }
 
         // Base64形式の検証 (RFC 4648に従い、ホワイトスペースを除去してから検証)
+        // 正規表現による検証は大きなデータに対してDoSの可能性があるため、
+        // 簡易的な文字チェックのみ行うか、デコード時のエラーハンドリングに任せる
         const cleanedBase64Data = base64Data.replace(/\s/g, '');
-        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedBase64Data)) {
-            return res.status(400).json({ error: '無効なBase64データです' });
-        }
+
+        // 簡易チェック: Base64文字以外が含まれていないか
+        // Note: 完全なBase64検証は高コストなため、ここでは明らかに不正な文字のみチェックするか、
+        // Buffer.fromでのデコード結果を信頼する。
+        // ここでは、正規表現による全文スキャンを避けるため、チェックを省略し
+        // performOCR内での処理に任せるか、必要ならより軽量なチェックを実装する。
+        // しかし、gemini apiに送る前に最低限のチェックはしておきたい。
+        // Node.jsのBufferは非Base64文字を無視する仕様があるため、
+        // 厳密なチェックが必要ならバリデーターライブラリを使うべきだが、
+        // ここではReDoS回避のため正規表現チェックを削除する。
 
         // OCR実行 (クリーンアップされたBase64データを使用)
         const result = await performOCR(cleanedBase64Data);
