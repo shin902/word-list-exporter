@@ -78,7 +78,11 @@ async function performOCR(base64Image) {
         throw new Error('Invalid response format from Gemini API');
     }
 
-    const text = data.candidates[0].content.parts[0].text;
+    const text = data.candidates[0].content.parts?.[0]?.text;
+
+    if (!text) {
+        throw new Error('Invalid response format from Gemini API: missing text');
+    }
 
     // Parse and validate JSON response
     try {
