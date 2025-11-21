@@ -38,13 +38,14 @@ router.post('/', limiter, async (req, res, next) => {
             return res.status(413).json({ error: '画像データが大きすぎます' });
         }
 
-        // Base64形式の検証
-        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+        // Base64形式の検証 (RFC 4648に従い、ホワイトスペースを除去してから検証)
+        const cleanedBase64Data = base64Data.replace(/\s/g, '');
+        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedBase64Data)) {
             return res.status(400).json({ error: '無効なBase64データです' });
         }
 
-        // OCR実行
-        const result = await performOCR(base64Data);
+        // OCR実行 (クリーンアップされたBase64データを使用)
+        const result = await performOCR(cleanedBase64Data);
 
         res.json({
             success: true,
