@@ -8,7 +8,7 @@ const {
     loadCards,
     deleteCard,
     // Helper functions might be needed if not globally mocked
-} = require('../../app');
+} = require('../../public/app');
 
 describe('parseTextToCards', () => {
     // Mock DOM elements needed by parseTextToCards

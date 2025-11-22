@@ -10,7 +10,7 @@ const {
     generateUniqueId,
     parseSubscriptSuperscript,
     debounce
-} = require('../../app');
+} = require('../../public/app');
 
 describe('sanitizeInput', () => {
     test('removes control characters', () => {
