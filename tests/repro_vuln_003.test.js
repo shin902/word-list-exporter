@@ -11,15 +11,10 @@ describe('vuln-003: Weak Random ID Generation', () => {
 
     afterEach(() => {
         // Restore the original crypto
-        if (originalCrypto) {
-            Object.defineProperty(global, 'crypto', {
-                value: originalCrypto,
-                writable: true
-            });
-        } else {
-            // If it was undefined originally (though unlikely in jsdom)
-            delete global.crypto;
-        }
+        Object.defineProperty(global, 'crypto', {
+            value: originalCrypto,
+            writable: true
+        });
     });
 
     test('throws error when crypto is undefined', () => {
@@ -32,21 +27,47 @@ describe('vuln-003: Weak Random ID Generation', () => {
         expect(() => generateUniqueId()).toThrow('Secure random number generation is not supported by this browser.');
     });
 
-    test('uses secure generation when available', () => {
-        // This test runs with the default environment (which has crypto mocked in setup.js or jsdom)
+    test('uses secure generation (randomUUID) when available', () => {
+        // Explicitly mock crypto with randomUUID to ensure consistent behavior
+        const mockRandomUUID = jest.fn(() => '12345678-1234-4abc-8def-1234567890ab');
+
+        Object.defineProperty(global, 'crypto', {
+            value: {
+                randomUUID: mockRandomUUID,
+                // getRandomValues might or might not be present, randomUUID takes precedence
+                getRandomValues: jest.fn()
+            },
+            writable: true
+        });
 
         const id = generateUniqueId();
 
-        // Check if it is a valid ID (either UUID or the 4-part randomValues format)
-        // UUID: 8-4-4-4-12 hex chars
-        // getRandomValues: 4 parts of base36 strings joined by hyphen
+        expect(mockRandomUUID).toHaveBeenCalled();
+        expect(id).toBe('12345678-1234-4abc-8def-1234567890ab');
+    });
 
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    test('uses getRandomValues when randomUUID is unavailable', () => {
+        // Mock crypto with only getRandomValues
+        Object.defineProperty(global, 'crypto', {
+            value: {
+                randomUUID: undefined,
+                getRandomValues: (array) => {
+                    for (let i = 0; i < array.length; i++) {
+                        // Fill with known values for predictability if needed,
+                        // or just random numbers. Let's use random.
+                        array[i] = Math.floor(Math.random() * 0xFFFFFFFF);
+                    }
+                    return array;
+                }
+            },
+            writable: true
+        });
+
+        const id = generateUniqueId();
+
+        // The fallback format is 4 parts of base36 strings joined by hyphen
         const randomValuesRegex = /^[0-9a-z]+-[0-9a-z]+-[0-9a-z]+-[0-9a-z]+$/i;
 
-        const isUuid = uuidRegex.test(id);
-        const isRandomValues = randomValuesRegex.test(id);
-
-        expect(isUuid || isRandomValues).toBeTruthy();
+        expect(randomValuesRegex.test(id)).toBeTruthy();
     });
 });
