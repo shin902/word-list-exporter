@@ -13,18 +13,27 @@ const sanitizeMessage = (msg) => {
 
     let sanitized = String(msg);
 
-    // Redact Unix-style paths (e.g., /home/user name/file.txt)
-    // Matches sequences starting with / followed by valid path chars, including spaces
-    sanitized = sanitized.replace(/(?:\/[a-zA-Z0-9_\-\.\s\(\)\+]+)+/g, '[PATH]');
+    // Redact Unix-style paths
+    // Strategy: Match sequences starting with '/' that look like paths.
+    // To avoid false positives (e.g. dates "5/10", ratios), we require at least 2 segments
+    // e.g. /usr/bin, /home/user, /var/log/file.txt
+    // OR starting with common root folders followed by a slash
+    sanitized = sanitized.replace(/(?:^|[\s(])(\/(?:usr|bin|home|var|etc|opt|tmp|root|Users|Program\sFiles)\/[\w\-.+\s\/]+)/g, ' [PATH]');
+
+    // Also catch generic paths with at least 2 levels of depth to catch others
+    // e.g. /app/src/file.js
+    sanitized = sanitized.replace(/(\/[\w\-.+]+\/[\w\-.+\/]+)/g, '[PATH]');
 
     // Redact Windows-style paths (e.g., C:\Windows\System32 or \\server\share)
-    // Drive letter: [a-zA-Z]:\
-    // UNC: \\
-    // Matches valid Windows path chars including spaces
-    sanitized = sanitized.replace(/([a-zA-Z]:\\[a-zA-Z0-9_\-\.\s\(\)\+\\]+|\\\\[a-zA-Z0-9_\-\.\s\(\)\+\\]+)/g, '[PATH]');
+    // Drive letter: [a-zA-Z]:\ followed by valid path chars
+    // UNC: \\ followed by valid path chars
+    sanitized = sanitized.replace(/([a-zA-Z]:\\[\w\-.+\s\(\)\+\\]+|\\\\[\w\-.+\s\(\)\+\\]+)/g, '[PATH]');
 
     // Limit length to prevent huge log entries or responses
-    return sanitized.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+    if (sanitized.length > MAX_ERROR_MESSAGE_LENGTH) {
+        return sanitized.substring(0, MAX_ERROR_MESSAGE_LENGTH - 3) + '...';
+    }
+    return sanitized;
 };
 
 /**
@@ -52,13 +61,14 @@ function errorHandler(err, req, res, next) {
 
     if (isDevelopment) {
         messageForLog = rawMessage;
-        // In dev, we can show the raw message to the client too
         messageForClient = rawMessage;
     } else {
         // Production: Sanitize everything
         const sanitized = sanitizeMessage(rawMessage);
 
         messageForLog = sanitized;
+        // For consistency, we use the sanitized message for client responses by default
+        // unless it's a 500 error where we might want to be even more generic.
         messageForClient = sanitized;
     }
 
@@ -66,6 +76,10 @@ function errorHandler(err, req, res, next) {
     if (isDevelopment) {
         console.error('Error:', err);
     } else {
+        // In production, we log the sanitized message.
+        // Ideally, we would log the full message to a secure, private log stream
+        // and the sanitized one to the console/standard output if it might be exposed.
+        // Assuming console.error might be exposed or is the only log, we stick to sanitized.
         console.error('Error occurred:', {
             message: messageForLog,
             status: err ? (err.status || err.statusCode || 500) : 500,
@@ -103,10 +117,8 @@ function errorHandler(err, req, res, next) {
     }
 
     // Default 500 error
-    // In production, we use the sanitized message or a generic fallback if something went wrong with sanitization
-    // But since we already calculated messageForClient safely above, we use it.
-    // Alternatively, for strict security, 500 errors in production often just say "Server Error"
-    // But the requirement was to use messageForClient which is sanitized.
+    // For 500 errors in production, we use a generic message to be absolutely safe and consistent.
+    // Sanitzed messages are good, but "Internal Server Error" is better for 500s.
     const finalMessage = isDevelopment ? messageForClient : 'サーバーエラーが発生しました。しばらくしてから再試行してください。';
 
     sendResponse(500, finalMessage);
