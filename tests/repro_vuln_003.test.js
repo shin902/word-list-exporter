@@ -1,4 +1,3 @@
-
 const { generateUniqueId } = require('../public/app.js');
 
 describe('vuln-003: Weak Random ID Generation', () => {
@@ -24,7 +23,7 @@ describe('vuln-003: Weak Random ID Generation', () => {
             writable: true
         });
 
-        expect(() => generateUniqueId()).toThrow('Secure random number generation is not supported by this browser.');
+        expect(() => generateUniqueId()).toThrow('このブラウザでは安全な乱数生成がサポートされていません。');
     });
 
     test('uses secure generation (randomUUID) when available', () => {
