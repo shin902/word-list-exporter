@@ -22,11 +22,9 @@ function generateUniqueId() {
         return Array.from(array, dec => dec.toString(36)).join('-');
     }
 
-    // 最終フォールバック（古いブラウザ用）: タイムスタンプ + Math.random()
-    const timestamp = Date.now().toString(36);
-    const randomPart1 = Math.random().toString(36).substring(2, 11);
-    const randomPart2 = Math.random().toString(36).substring(2, 11);
-    return `${timestamp}-${randomPart1}-${randomPart2}`;
+    // 最終フォールバック: 安全でない乱数生成は使用しない
+    // CWE-330: Math.random()は暗号学的に安全ではないため、フォールバックとして使用せずエラーとする
+    throw new Error('このブラウザでは安全な乱数生成がサポートされていません。');
 }
 
 /**
