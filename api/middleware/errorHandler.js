@@ -1,5 +1,13 @@
 function errorHandler(err, req, res, next) {
-    console.error('Error:', err);
+    if (process.env.NODE_ENV === 'development') {
+        console.error('Error:', err);
+    } else {
+        console.error('Error occurred:', {
+            message: err.message,
+            status: err.status || err.statusCode || 500,
+            timestamp: new Date().toISOString()
+        });
+    }
 
     // Gemini APIエラーの処理
     if (err.message && err.message.includes('Gemini API error')) {
