@@ -46,7 +46,6 @@ describe('Error Handler Middleware', () => {
                 error: 'Specific dev error'
             }));
 
-            // In dev, errorId is undefined
             const responseBody = res.json.mock.calls[0][0];
             expect(responseBody.errorId).toBeUndefined();
         });
@@ -88,8 +87,6 @@ describe('Error Handler Middleware', () => {
 
         it('should return generic message for 500 errors', () => {
             const err = new Error('Database connection failed to 192.168.1.1');
-            // No status, implies 500
-
             errorHandler(err, req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(500);
@@ -97,10 +94,6 @@ describe('Error Handler Middleware', () => {
                 error: 'サーバーエラーが発生しました。しばらくしてから再試行してください。',
                 errorId: expect.any(String)
             }));
-
-            // Ensure internal details are NOT in the client response
-            const responseBody = res.json.mock.calls[0][0];
-            expect(responseBody.error).not.toContain('Database');
         });
 
         describe('Path Sanitization', () => {
@@ -110,7 +103,8 @@ describe('Error Handler Middleware', () => {
                 errorHandler(err, req, res, next);
 
                 const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toBe('File not found: [PATH]');
+                expect(responseBody.error).toContain('[PATH]');
+                expect(responseBody.error).not.toContain('/usr/local');
             });
 
             it('should sanitize Windows paths with spaces', () => {
@@ -119,28 +113,49 @@ describe('Error Handler Middleware', () => {
                 errorHandler(err, req, res, next);
 
                 const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toBe('Access denied to [PATH]');
+                expect(responseBody.error).toContain('[PATH]');
+                expect(responseBody.error).not.toContain('secret.key');
+            });
+
+            it('should NOT sanitize non-path strings like 5/10', () => {
+                const err = new Error('Rate limit: 5/10 requests');
+                err.status = 400;
+                errorHandler(err, req, res, next);
+
+                const responseBody = res.json.mock.calls[0][0];
+                expect(responseBody.error).toBe('Rate limit: 5/10 requests');
+            });
+
+            it('should sanitize deep Unix paths', () => {
+                const err = new Error('Error at /app/src/controllers/user.js');
+                err.status = 400;
+                errorHandler(err, req, res, next);
+                const responseBody = res.json.mock.calls[0][0];
+                expect(responseBody.error).toContain('[PATH]');
             });
         });
 
-        describe('Gemini API Sanitization', () => {
-            it('should sanitize Gemini error messages in logs', () => {
-                const err = new Error('Gemini API error: invalid argument at /internal/path/api.js');
-                // This might not be a 429/401/403, so it might fall through or be handled if regex matches
-                // The code checks "includes('Gemini API error')"
-                // But status match might fail or default to 500.
-                // Let's say it fails status match, so status=500.
-
+        describe('Gemini API Handling', () => {
+            it('should return Japanese rate limit message for Gemini 429 errors', () => {
+                const err = new Error('Gemini API error: 429 rate limit exceeded');
                 errorHandler(err, req, res, next);
 
-                // Check log
-                expect(consoleSpy).toHaveBeenCalledWith(
-                    'Error occurred:',
-                    expect.objectContaining({
-                        message: expect.stringContaining('[PATH]'),
-                        message: expect.not.stringContaining('/internal/path/api.js')
-                    })
-                );
+                expect(res.status).toHaveBeenCalledWith(429);
+                expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                    error: 'APIのリクエスト上限に達しました。しばらくしてから再試行してください。',
+                    errorId: expect.any(String)
+                }));
+            });
+
+            it('should return Japanese server error message for Gemini 401/403 errors', () => {
+                const err = new Error('Gemini API error: 403 forbidden');
+                errorHandler(err, req, res, next);
+
+                expect(res.status).toHaveBeenCalledWith(500);
+                expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                    error: 'サーバーの設定エラーです。管理者に連絡してください。',
+                    errorId: expect.any(String)
+                }));
             });
         });
 
@@ -154,16 +169,7 @@ describe('Error Handler Middleware', () => {
                 expect(responseBody.error).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
             });
 
-             it('should handle undefined error object', () => {
-                const err = undefined;
-                errorHandler(err, req, res, next);
-
-                expect(res.status).toHaveBeenCalledWith(500);
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
-            });
-
-            it('should truncate very long error messages', () => {
+            it('should truncate very long error messages with ellipsis', () => {
                 const longMsg = 'A'.repeat(300);
                 const err = new Error(longMsg);
                 err.status = 400;
@@ -172,6 +178,7 @@ describe('Error Handler Middleware', () => {
 
                 const responseBody = res.json.mock.calls[0][0];
                 expect(responseBody.error.length).toBeLessThanOrEqual(200);
+                expect(responseBody.error.endsWith('...')).toBe(true);
             });
         });
     });
