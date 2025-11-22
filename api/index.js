@@ -1,6 +1,7 @@
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const path = require('path');
 require('./config');
 
 const ocrRouter = require('./routes/ocr');
@@ -21,7 +22,7 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 
 // 静的ファイルの配信（ローカル開発用）
-app.use(express.static(__dirname + '/../'));
+app.use(express.static(path.join(__dirname, '../public')));
 
 // ルート
 app.use('/api/ocr', ocrRouter);
