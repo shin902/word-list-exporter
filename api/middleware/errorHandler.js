@@ -1,11 +1,25 @@
+const crypto = require('crypto');
+
 function errorHandler(err, req, res, next) {
-    if (process.env.NODE_ENV === 'development') {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
+    if (isDevelopment) {
         console.error('Error:', err);
     } else {
+        // Sanitize message to remove potential file paths
+        const sanitizeMessage = (msg) => {
+            if (!msg) return 'Unknown error';
+            // Remove potential file paths (simplified regex for common path structures)
+            const sanitized = msg.replace(/(\/[a-zA-Z0-9_\-\.]+)+/g, '[PATH]');
+            // Limit length
+            return sanitized.substring(0, 200);
+        };
+
         console.error('Error occurred:', {
-            message: err.message,
+            message: sanitizeMessage(err.message),
             status: err.status || err.statusCode || 500,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            errorId: crypto.randomUUID()
         });
     }
 
