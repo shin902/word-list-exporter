@@ -92,7 +92,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Read app.js and extract only function definitions (avoid executing event listeners)
-const appJsPath = path.join(__dirname, '..', 'app.js');
+const appJsPath = path.join(__dirname, '..', 'public', 'app.js');
 const appJsContent = fs.readFileSync(appJsPath, 'utf8');
 
 // Mock DOM elements to prevent errors during app.js execution
