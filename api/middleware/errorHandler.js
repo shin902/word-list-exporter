@@ -1,104 +1,114 @@
 const crypto = require('crypto');
 
-const MAX_ERROR_MESSAGE_LENGTH = 200;
+const MAX_ERROR_MESSAGE_LENGTH = parseInt(process.env.MAX_ERROR_LENGTH, 10) || 200;
 
 /**
- * Sanitizes error messages by removing file paths and limiting length.
+ * Sanitizes error messages by removing sensitive path information
  * Handles both Unix-style (/path/to/file) and Windows-style (C:\path\to\file) paths.
- * @param {string} msg - The error message to sanitize
- * @returns {string} Sanitized message safe for logging and response
+ *
+ * Examples of paths that will be sanitized:
+ * - Unix: /etc/passwd, /home/user/file.txt, /var/log/app.log
+ * - Windows: C:\file.txt, C:\Windows\System32\config, D:\data\secret.json
+ * - Paths with spaces: /home/user/my documents/file.txt, C:\Program Files\app\config.ini
+ *
+ * @param {string} message - The error message to sanitize
+ * @returns {string} The sanitized message
  */
-const sanitizeMessage = (msg) => {
-    if (!msg) return 'Unknown error';
-
-    let sanitized = String(msg);
-
-    // Redact Unix-style paths
-    // Strategy: Match sequences starting with '/' that look like paths.
-    // To avoid false positives (e.g. dates "5/10", ratios), we require at least 2 segments
-    // e.g. /usr/bin, /home/user, /var/log/file.txt
-    // OR starting with common root folders followed by a slash
-    sanitized = sanitized.replace(/(?:^|[\s(])(\/(?:usr|bin|home|var|etc|opt|tmp|root|Users|Program\sFiles)\/[\w\-.+\s\/]+)/g, ' [PATH]');
-
-    // Also catch generic paths with at least 2 levels of depth to catch others
-    // e.g. /app/src/file.js
-    sanitized = sanitized.replace(/(\/[\w\-.+]+\/[\w\-.+\/]+)/g, '[PATH]');
-
-    // Redact Windows-style paths (e.g., C:\Windows\System32 or \\server\share)
-    // Drive letter: [a-zA-Z]:\ followed by valid path chars
-    // UNC: \\ followed by valid path chars
-    sanitized = sanitized.replace(/([a-zA-Z]:\\[\w\-.+\s\(\)\+\\]+|\\\\[\w\-.+\s\(\)\+\\]+)/g, '[PATH]');
-
-    // Limit length to prevent huge log entries or responses
-    if (sanitized.length > MAX_ERROR_MESSAGE_LENGTH) {
-        return sanitized.substring(0, MAX_ERROR_MESSAGE_LENGTH - 3) + '...';
+function sanitizeMessage(message) {
+    if (!message || typeof message !== 'string') {
+        return 'An error occurred';
     }
+
+    let sanitized = message;
+
+    // Remove Windows paths (including single-level paths like C:\file.txt)
+    // Pattern: Drive letter + colon + backslash + any valid Windows path characters
+    // Examples: C:\file.txt, D:\folder\file.txt, C:\Program Files\app\config.ini
+    sanitized = sanitized.replace(/[A-Za-z]:\\[\w\s\-.+\\]+/g, '[PATH]');
+
+    // Remove Unix absolute paths
+    // Pattern: Starting with / followed by path segments
+    // Examples: /etc/passwd, /home/user/file.txt, /var/log/app.log
+    sanitized = sanitized.replace(/\/(?:[\w\s\-.+]+\/)+[\w\s\-.+]+/g, '[PATH]');
+
+    // Additional pattern for Unix paths with specific structure (file extension or multiple levels)
+    // This catches paths that might have been missed by the previous pattern
+    sanitized = sanitized.replace(/\/(?:[\w\-]+\/)+[\w\-.]+(?:\.\w+)?/g, '[PATH]');
+
+    // Truncate long messages
+    if (sanitized.length > MAX_ERROR_MESSAGE_LENGTH) {
+        sanitized = sanitized.substring(0, MAX_ERROR_MESSAGE_LENGTH) + '...';
+    }
+
     return sanitized;
-};
+}
 
 /**
- * Global error handling middleware.
- * Handles logging and sending appropriate error responses to the client.
- * In production, it sanitizes error messages to prevent information disclosure.
- *
- * @param {Error} err - The error object
+ * Returns a generic error message for common HTTP status codes
+ * @param {number} status - HTTP status code
+ * @returns {string|null} Generic message or null if no predefined message
+ */
+function getGenericMessageForStatus(status) {
+    const messages = {
+        400: 'リクエストが不正です。',
+        401: '認証が必要です。',
+        403: 'アクセスが拒否されました。',
+        404: 'リソースが見つかりません。',
+        413: 'リクエストのペイロードが大きすぎます。',
+        429: 'リクエストが多すぎます。しばらくしてから再試行してください。',
+        500: 'サーバーエラーが発生しました。',
+        502: 'ゲートウェイエラーが発生しました。',
+        503: 'サービスが一時的に利用できません。'
+    };
+    return messages[status] || null;
+}
+
+/**
+ * Express error handler middleware with environment-aware error handling
+ * - Development: Returns detailed error messages for debugging
+ * - Production: Returns sanitized, generic messages to prevent information disclosure
+ * @param {Error} err - Error object
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
  */
 function errorHandler(err, req, res, next) {
-    // Default to safe production mode unless explicitly 'development'
+    // Determine environment (default to production for safety)
     const isDevelopment = process.env.NODE_ENV === 'development';
 
-    // Generate a unique ID for correlation (only in production to save resources)
-    const errorId = isDevelopment ? undefined : crypto.randomUUID();
+    // Generate unique error ID for production debugging
+    const errorId = isDevelopment ? null : crypto.randomUUID();
 
-    // Prepare the error info
-    let messageForLog;
-    let messageForClient;
-
-    const rawMessage = (err && err.message) ? err.message : 'Unknown error';
-
-    if (isDevelopment) {
-        messageForLog = rawMessage;
-        messageForClient = rawMessage;
-    } else {
-        // Production: Sanitize everything
-        const sanitized = sanitizeMessage(rawMessage);
-
-        messageForLog = sanitized;
-        // For consistency, we use the sanitized message for client responses by default
-        // unless it's a 500 error where we might want to be even more generic.
-        messageForClient = sanitized;
-    }
-
-    // Logging
-    if (isDevelopment) {
-        console.error('Error:', err);
-    } else {
-        // In production, we log the sanitized message.
-        // Ideally, we would log the full message to a secure, private log stream
-        // and the sanitized one to the console/standard output if it might be exposed.
-        // Assuming console.error might be exposed or is the only log, we stick to sanitized.
-        console.error('Error occurred:', {
-            message: messageForLog,
-            status: err ? (err.status || err.statusCode || 500) : 500,
-            timestamp: new Date().toISOString(),
-            errorId: errorId
-        });
-    }
-
-    // Helper to send JSON response
+    // Helper function to send response with validation
     const sendResponse = (status, message) => {
+        if (!res || typeof res.status !== 'function') {
+            console.error('Invalid response object in errorHandler');
+            return;
+        }
         const response = { error: message };
+        // Add errorId if in production
         if (errorId) {
             response.errorId = errorId;
         }
         return res.status(status).json(response);
     };
 
-    // Gemini API errors
-    // Note: We check rawMessage for logic, but response/logs use sanitized values in production
+    // Handle null/undefined errors early
+    if (!err) {
+        return sendResponse(500, '不明なエラーが発生しました。');
+    }
+
+    // Log detailed errors in development
+    if (isDevelopment) {
+        console.error('Error:', err);
+    } else {
+        // In production, log with error ID for correlation
+        console.error(`Error ID ${errorId}:`, err?.message || 'Unknown error');
+    }
+
+    const rawMessage = err.message || 'Unknown error';
+
+    // Gemini API error handling (keep existing Japanese messages)
     if (rawMessage.includes('Gemini API error')) {
         const statusMatch = rawMessage.match(/(\d{3})/);
         const status = statusMatch ? parseInt(statusMatch[1]) : 500;
@@ -110,18 +120,32 @@ function errorHandler(err, req, res, next) {
         }
     }
 
-    // Standard status code errors (body-parser, explicit throws)
+    // Handle errors with status codes (from body-parser, etc.)
     if (err && (err.status || err.statusCode)) {
         const status = err.status || err.statusCode;
+
+        // In production, use generic messages for better security
+        // In development, show sanitized original message
+        let messageForClient;
+        if (isDevelopment) {
+            messageForClient = rawMessage;
+        } else {
+            // For non-500 errors, try to use generic message first
+            messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
+        }
+
         return sendResponse(status, messageForClient);
     }
 
-    // Default 500 error
-    // For 500 errors in production, we use a generic message to be absolutely safe and consistent.
-    // Sanitzed messages are good, but "Internal Server Error" is better for 500s.
-    const finalMessage = isDevelopment ? messageForClient : 'サーバーエラーが発生しました。しばらくしてから再試行してください。';
-
-    sendResponse(500, finalMessage);
+    // Default 500 error handling
+    // Production: Generic message with error ID for debugging
+    // Development: Full error details
+    if (isDevelopment) {
+        return sendResponse(500, rawMessage);
+    } else {
+        // Sanitized messages are good for debugging without exposing paths
+        return sendResponse(500, 'サーバーエラーが発生しました。しばらくしてから再試行してください。');
+    }
 }
 
 module.exports = errorHandler;

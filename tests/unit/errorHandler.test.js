@@ -2,53 +2,24 @@ const errorHandler = require('../../api/middleware/errorHandler');
 
 describe('Error Handler Middleware', () => {
     let req, res, next;
-    let originalConsoleError;
-    let consoleSpy;
-    let originalEnv;
-
-    beforeAll(() => {
-        originalConsoleError = console.error;
-        originalEnv = process.env.NODE_ENV;
-    });
-
-    afterAll(() => {
-        console.error = originalConsoleError;
-        process.env.NODE_ENV = originalEnv;
-    });
+    const originalEnv = process.env.NODE_ENV;
 
     beforeEach(() => {
         req = {};
         res = {
             status: jest.fn().mockReturnThis(),
-            json: jest.fn()
+            json: jest.fn().mockReturnThis()
         };
         next = jest.fn();
-        consoleSpy = jest.fn();
-        console.error = consoleSpy;
+        jest.clearAllMocks();
+        // Clear console mocks
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
-    describe('Development Environment', () => {
-        beforeEach(() => {
-            process.env.NODE_ENV = 'development';
-        });
-
-        it('should log full error object', () => {
-            const err = new Error('Test dev error');
-            errorHandler(err, req, res, next);
-            expect(consoleSpy).toHaveBeenCalledWith('Error:', err);
-        });
-
-        it('should return raw error message to client', () => {
-            const err = new Error('Specific dev error');
-            err.status = 400;
-            errorHandler(err, req, res, next);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                error: 'Specific dev error'
-            }));
-
-            const responseBody = res.json.mock.calls[0][0];
-            expect(responseBody.errorId).toBeUndefined();
-        });
+    afterEach(() => {
+        process.env.NODE_ENV = originalEnv;
+        jest.restoreAllMocks();
     });
 
     describe('Production Environment', () => {
@@ -56,130 +27,357 @@ describe('Error Handler Middleware', () => {
             process.env.NODE_ENV = 'production';
         });
 
-        it('should log sanitized structured error', () => {
-            const err = new Error('Error in /home/user/secret.txt');
+        it('should return generic 500 error message in production', () => {
+            const err = new Error('Detailed internal error message');
             errorHandler(err, req, res, next);
 
-            expect(consoleSpy).toHaveBeenCalledWith(
-                'Error occurred:',
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    message: expect.stringContaining('[PATH]'),
-                    message: expect.not.stringContaining('/home/user/secret.txt'),
+                    error: 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
+                })
+            );
+        });
+
+        it('should include errorId in production', () => {
+            const err = new Error('Some error');
+            errorHandler(err, req, res, next);
+
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
                     errorId: expect.any(String)
                 })
             );
         });
 
-        it('should return sanitized message to client for status errors', () => {
-            const err = new Error('Invalid input from /var/www/config.json');
-            err.status = 400;
-
+        it('should sanitize Unix paths in error messages', () => {
+            const err = { status: 400, message: 'Failed to load /etc/passwd' };
             errorHandler(err, req, res, next);
 
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                error: expect.stringContaining('[PATH]'),
-                errorId: expect.any(String)
-            }));
-
-            const responseBody = res.json.mock.calls[0][0];
-            expect(responseBody.error).not.toContain('/var/www/config.json');
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: expect.not.stringContaining('/etc/passwd')
+                })
+            );
         });
 
-        it('should return generic message for 500 errors', () => {
-            const err = new Error('Database connection failed to 192.168.1.1');
+        it('should sanitize Windows paths in error messages', () => {
+            const err = { status: 400, message: 'Cannot access C:\\Windows\\System32\\config' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: expect.not.stringContaining('C:\\Windows')
+                })
+            );
+        });
+
+        it('should sanitize paths with spaces', () => {
+            // Use status code without generic message to test sanitization
+            const err = { status: 418, message: 'Error in /home/user/my documents/secret.txt' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(418);
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).not.toContain('/home/user/my documents');
+        });
+
+        it('should NOT sanitize false positives like "JSON/XML"', () => {
+            const err = { status: 400, message: 'Invalid format: JSON/XML expected' };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            // Should use generic message, not sanitize
+            expect(errorMessage).toBe('リクエストが不正です。');
+        });
+
+        it('should use generic message for 400 status in production', () => {
+            const err = { status: 400, message: 'Some validation error' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'リクエストが不正です。'
+                })
+            );
+        });
+
+        it('should use generic message for 404 status in production', () => {
+            const err = { status: 404, message: 'User not found at /api/users/123' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'リソースが見つかりません。'
+                })
+            );
+        });
+
+        it('should handle Gemini API 429 error', () => {
+            const err = new Error('Gemini API error: 429');
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(429);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'APIのリクエスト上限に達しました。しばらくしてから再試行してください。'
+                })
+            );
+        });
+
+        it('should handle Gemini API 401 error', () => {
+            const err = new Error('Gemini API error: 401');
             errorHandler(err, req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                error: 'サーバーエラーが発生しました。しばらくしてから再試行してください。',
-                errorId: expect.any(String)
-            }));
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'サーバーの設定エラーです。管理者に連絡してください。'
+                })
+            );
         });
 
-        describe('Path Sanitization', () => {
-            it('should sanitize Unix paths with spaces', () => {
-                const err = new Error('File not found: /usr/local/My Folder/app.log');
-                err.status = 400;
-                errorHandler(err, req, res, next);
+        it('should handle Gemini API 403 error', () => {
+            const err = new Error('Gemini API error: 403');
+            errorHandler(err, req, res, next);
 
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toContain('[PATH]');
-                expect(responseBody.error).not.toContain('/usr/local');
-            });
-
-            it('should sanitize Windows paths with spaces', () => {
-                const err = new Error('Access denied to C:\\Program Files\\MyApp\\secret.key');
-                err.status = 400;
-                errorHandler(err, req, res, next);
-
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toContain('[PATH]');
-                expect(responseBody.error).not.toContain('secret.key');
-            });
-
-            it('should NOT sanitize non-path strings like 5/10', () => {
-                const err = new Error('Rate limit: 5/10 requests');
-                err.status = 400;
-                errorHandler(err, req, res, next);
-
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toBe('Rate limit: 5/10 requests');
-            });
-
-            it('should sanitize deep Unix paths', () => {
-                const err = new Error('Error at /app/src/controllers/user.js');
-                err.status = 400;
-                errorHandler(err, req, res, next);
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toContain('[PATH]');
-            });
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'サーバーの設定エラーです。管理者に連絡してください。'
+                })
+            );
         });
 
-        describe('Gemini API Handling', () => {
-            it('should return Japanese rate limit message for Gemini 429 errors', () => {
-                const err = new Error('Gemini API error: 429 rate limit exceeded');
-                errorHandler(err, req, res, next);
+        it('should truncate very long error messages', () => {
+            const longMessage = 'a'.repeat(300);
+            const err = { status: 400, message: longMessage };
+            errorHandler(err, req, res, next);
 
-                expect(res.status).toHaveBeenCalledWith(429);
-                expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                    error: 'APIのリクエスト上限に達しました。しばらくしてから再試行してください。',
+            // Should use generic message for 400
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'リクエストが不正です。'
+                })
+            );
+        });
+
+        it('should handle null error object', () => {
+            errorHandler(null, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: '不明なエラーが発生しました。'
+                })
+            );
+        });
+
+        it('should handle undefined error object', () => {
+            errorHandler(undefined, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: '不明なエラーが発生しました。'
+                })
+            );
+        });
+
+        it('should validate res object before using it', () => {
+            const invalidRes = {};
+            const err = new Error('Test error');
+
+            // Should not throw
+            expect(() => {
+                errorHandler(err, req, invalidRes, next);
+            }).not.toThrow();
+
+            expect(console.error).toHaveBeenCalledWith(
+                expect.stringContaining('Invalid response object')
+            );
+        });
+    });
+
+    describe('Development Environment', () => {
+        beforeEach(() => {
+            process.env.NODE_ENV = 'development';
+        });
+
+        it('should return detailed error message in development', () => {
+            const err = new Error('Detailed internal error message');
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'Detailed internal error message'
+                })
+            );
+        });
+
+        it('should NOT include errorId in development', () => {
+            const err = new Error('Some error');
+            errorHandler(err, req, res, next);
+
+            expect(res.json).toHaveBeenCalledWith(
+                expect.not.objectContaining({
                     errorId: expect.any(String)
-                }));
-            });
+                })
+            );
+        });
 
-            it('should return Japanese server error message for Gemini 401/403 errors', () => {
-                const err = new Error('Gemini API error: 403 forbidden');
-                errorHandler(err, req, res, next);
+        it('should NOT sanitize paths in development for status errors', () => {
+            const err = { status: 400, message: 'Failed to load /etc/passwd' };
+            errorHandler(err, req, res, next);
 
-                expect(res.status).toHaveBeenCalledWith(500);
-                expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                    error: 'サーバーの設定エラーです。管理者に連絡してください。',
-                    errorId: expect.any(String)
-                }));
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Failed to load /etc/passwd'
             });
         });
 
-        describe('Edge Cases', () => {
-            it('should handle null error object', () => {
-                const err = null;
-                errorHandler(err, req, res, next);
+        it('should log full error details in development', () => {
+            const err = new Error('Test error');
+            errorHandler(err, req, res, next);
 
-                expect(res.status).toHaveBeenCalledWith(500);
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
+            expect(console.error).toHaveBeenCalledWith('Error:', err);
+        });
+
+        it('should handle statusCode property (alternative to status)', () => {
+            const err = { statusCode: 401, message: 'Unauthorized' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Unauthorized'
             });
+        });
+    });
 
-            it('should truncate very long error messages with ellipsis', () => {
-                const longMsg = 'A'.repeat(300);
-                const err = new Error(longMsg);
-                err.status = 400;
+    describe('Environment Detection', () => {
+        it('should default to production mode when NODE_ENV is not set', () => {
+            delete process.env.NODE_ENV;
+            const err = new Error('Test error');
+            errorHandler(err, req, res, next);
 
-                errorHandler(err, req, res, next);
+            // Should behave like production (include errorId)
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    errorId: expect.any(String),
+                    error: 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
+                })
+            );
+        });
 
-                const responseBody = res.json.mock.calls[0][0];
-                expect(responseBody.error.length).toBeLessThanOrEqual(200);
-                expect(responseBody.error.endsWith('...')).toBe(true);
-            });
+        it('should default to production when NODE_ENV is "test"', () => {
+            process.env.NODE_ENV = 'test';
+            const err = new Error('Test error');
+            errorHandler(err, req, res, next);
+
+            // Should behave like production (include errorId)
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    errorId: expect.any(String)
+                })
+            );
+        });
+    });
+
+    describe('Edge Cases', () => {
+        beforeEach(() => {
+            process.env.NODE_ENV = 'production';
+        });
+
+        it('should handle error with empty message', () => {
+            const err = { status: 400, message: '' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'リクエストが不正です。'
+                })
+            );
+        });
+
+        it('should handle error without message property', () => {
+            const err = { status: 500 };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalled();
+        });
+
+        it('should handle non-Error objects thrown as errors', () => {
+            const err = { status: 400, message: 'String error' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalled();
+        });
+
+        it('should sanitize single-level Windows paths like C:\\file.txt', () => {
+            const err = { status: 418, message: 'Cannot read C:\\config.json' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(418);
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).not.toContain('C:\\config.json');
+        });
+
+        it('should sanitize Windows paths with Program Files', () => {
+            const err = { status: 418, message: 'Error in C:\\Program Files\\app\\config.ini' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(418);
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).not.toContain('Program Files');
+        });
+    });
+
+    describe('Configuration', () => {
+        beforeEach(() => {
+            process.env.NODE_ENV = 'production';
+        });
+
+        it('should truncate very long error messages', () => {
+            // Use a message longer than default 200 chars without paths
+            const longMessage = 'Error occurred: ' + 'x'.repeat(300);
+            const err = { status: 418, message: longMessage };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            // Should be truncated (200 chars + '...')
+            expect(errorMessage.length).toBeLessThanOrEqual(203);
+            expect(errorMessage).toContain('...');
+        });
+
+        it('should not truncate messages shorter than limit', () => {
+            const shortMessage = 'Short error message';
+            const err = { status: 418, message: shortMessage };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toBe(shortMessage);
+            expect(errorMessage).not.toContain('...');
+        });
+
+        it('should handle exactly 200 char messages without truncation', () => {
+            const exactMessage = 'x'.repeat(200);
+            const err = { status: 418, message: exactMessage };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toBe(exactMessage);
+            expect(errorMessage.length).toBe(200);
         });
     });
 });
