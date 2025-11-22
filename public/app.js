@@ -24,7 +24,7 @@ function generateUniqueId() {
 
     // 最終フォールバック: 安全でない乱数生成は使用しない
     // CWE-330: Math.random()は暗号学的に安全ではないため、フォールバックとして使用せずエラーとする
-    throw new Error('Secure random number generation is not supported by this browser.');
+    throw new Error('このブラウザでは安全な乱数生成がサポートされていません。');
 }
 
 /**
