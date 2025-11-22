@@ -36,7 +36,7 @@ const {
     // I need to export `performOCR` from `app.js`.
     // AND I need to fix the test expectations to match what `performOCR` expects from `/api/ocr`.
     performOCR
-} = require('../../app');
+} = require('../../public/app');
 
 describe('OCR Workflow Integration', () => {
     let mockFetch;

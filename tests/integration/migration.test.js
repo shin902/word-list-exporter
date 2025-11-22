@@ -7,7 +7,7 @@ const {
     loadCards,
     deleteCard,
     createCard
-} = require('../../app');
+} = require('../../public/app');
 
 describe('Data Migration Integration', () => {
     beforeEach(() => {
