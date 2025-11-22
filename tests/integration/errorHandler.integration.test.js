@@ -265,4 +265,66 @@ describe('Error Handler Integration Tests', () => {
             expect(response.body.error).toBe('リクエストが不正です。');
         });
     });
+
+    describe('Actual Filesystem Paths', () => {
+        beforeEach(() => {
+            process.env.NODE_ENV = 'production';
+        });
+
+        it('should sanitize actual project directory paths', async () => {
+            const actualPath = __dirname; // Real path from the test
+            app.get('/test', (req, res) => {
+                const err = new Error(`Failed to load ${actualPath}/config.json`);
+                err.status = 500;
+                throw err;
+            });
+            app.use(errorHandler);
+
+            const response = await request(app).get('/test');
+
+            expect(response.status).toBe(500);
+            // Should not contain the actual path
+            expect(response.body.error).not.toContain(actualPath);
+            expect(response.body.error).not.toContain('config.json');
+            // Should return generic 500 message (from getGenericMessageForStatus)
+            expect(response.body.error).toBe('サーバーエラーが発生しました。');
+        });
+
+        it('should sanitize actual __filename paths', async () => {
+            const actualFile = __filename; // Real file path
+            app.get('/test', (req, res) => {
+                const err = new Error(`Cannot access ${actualFile}`);
+                err.status = 418;
+                throw err;
+            });
+            app.use(errorHandler);
+
+            const response = await request(app).get('/test');
+
+            expect(response.status).toBe(418);
+            const errorMessage = response.body.error;
+            // Should contain [PATH] placeholder
+            expect(errorMessage).toContain('[PATH]');
+            // Should not contain any part of the actual path
+            expect(errorMessage).not.toContain('errorHandler');
+            expect(errorMessage).not.toContain('integration');
+            expect(errorMessage).not.toContain('.test.js');
+        });
+
+        it('should sanitize paths in stack traces when status is provided', async () => {
+            const actualPath = require('path').resolve(__dirname, '../../api/middleware/errorHandler.js');
+            app.get('/test', (req, res) => {
+                const err = new Error(`Module error at ${actualPath}`);
+                err.status = 418;
+                throw err;
+            });
+            app.use(errorHandler);
+
+            const response = await request(app).get('/test');
+
+            expect(response.status).toBe(418);
+            expect(response.body.error).toContain('[PATH]');
+            expect(response.body.error).not.toContain('errorHandler.js');
+        });
+    });
 });

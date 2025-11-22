@@ -321,5 +321,63 @@ describe('Error Handler Middleware', () => {
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalled();
         });
+
+        it('should sanitize single-level Windows paths like C:\\file.txt', () => {
+            const err = { status: 418, message: 'Cannot read C:\\config.json' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(418);
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).not.toContain('C:\\config.json');
+        });
+
+        it('should sanitize Windows paths with Program Files', () => {
+            const err = { status: 418, message: 'Error in C:\\Program Files\\app\\config.ini' };
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(418);
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).not.toContain('Program Files');
+        });
+    });
+
+    describe('Configuration', () => {
+        beforeEach(() => {
+            process.env.NODE_ENV = 'production';
+        });
+
+        it('should truncate very long error messages', () => {
+            // Use a message longer than default 200 chars without paths
+            const longMessage = 'Error occurred: ' + 'x'.repeat(300);
+            const err = { status: 418, message: longMessage };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            // Should be truncated (200 chars + '...')
+            expect(errorMessage.length).toBeLessThanOrEqual(203);
+            expect(errorMessage).toContain('...');
+        });
+
+        it('should not truncate messages shorter than limit', () => {
+            const shortMessage = 'Short error message';
+            const err = { status: 418, message: shortMessage };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toBe(shortMessage);
+            expect(errorMessage).not.toContain('...');
+        });
+
+        it('should handle exactly 200 char messages without truncation', () => {
+            const exactMessage = 'x'.repeat(200);
+            const err = { status: 418, message: exactMessage };
+            errorHandler(err, req, res, next);
+
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toBe(exactMessage);
+            expect(errorMessage.length).toBe(200);
+        });
     });
 });

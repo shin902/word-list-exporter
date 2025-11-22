@@ -1,9 +1,16 @@
 const crypto = require('crypto');
 
-const MAX_ERROR_MESSAGE_LENGTH = process.env.MAX_ERROR_LENGTH || 200;
+const MAX_ERROR_MESSAGE_LENGTH = parseInt(process.env.MAX_ERROR_LENGTH, 10) || 200;
 
 /**
  * Sanitizes error messages by removing sensitive path information
+ * Handles both Unix-style (/path/to/file) and Windows-style (C:\path\to\file) paths.
+ *
+ * Examples of paths that will be sanitized:
+ * - Unix: /etc/passwd, /home/user/file.txt, /var/log/app.log
+ * - Windows: C:\file.txt, C:\Windows\System32\config, D:\data\secret.json
+ * - Paths with spaces: /home/user/my documents/file.txt, C:\Program Files\app\config.ini
+ *
  * @param {string} message - The error message to sanitize
  * @returns {string} The sanitized message
  */
@@ -14,13 +21,18 @@ function sanitizeMessage(message) {
 
     let sanitized = message;
 
-    // Remove absolute paths (Unix and Windows)
-    // Pattern 1: Absolute paths starting with / or C:\ etc.
-    sanitized = sanitized.replace(/[A-Za-z]:\\(?:[\w\s\-.+\\]+\\)+[\w\s\-.+]+/g, '[PATH]');
+    // Remove Windows paths (including single-level paths like C:\file.txt)
+    // Pattern: Drive letter + colon + backslash + any valid Windows path characters
+    // Examples: C:\file.txt, D:\folder\file.txt, C:\Program Files\app\config.ini
+    sanitized = sanitized.replace(/[A-Za-z]:\\[\w\s\-.+\\]+/g, '[PATH]');
+
+    // Remove Unix absolute paths
+    // Pattern: Starting with / followed by path segments
+    // Examples: /etc/passwd, /home/user/file.txt, /var/log/app.log
     sanitized = sanitized.replace(/\/(?:[\w\s\-.+]+\/)+[\w\s\-.+]+/g, '[PATH]');
 
-    // Pattern 2: More specific for file paths with extensions or typical directory structures
-    // Only match if it looks like a real file path (has extension or multiple directory levels)
+    // Additional pattern for Unix paths with specific structure (file extension or multiple levels)
+    // This catches paths that might have been missed by the previous pattern
     sanitized = sanitized.replace(/\/(?:[\w\-]+\/)+[\w\-.]+(?:\.\w+)?/g, '[PATH]');
 
     // Truncate long messages
@@ -67,17 +79,6 @@ function errorHandler(err, req, res, next) {
     // Generate unique error ID for production debugging
     const errorId = isDevelopment ? null : crypto.randomUUID();
 
-    // Log detailed errors in development
-    if (isDevelopment) {
-        if (process.env.NODE_ENV !== 'development') {
-            console.warn('Warning: NODE_ENV mismatch detected');
-        }
-        console.error('Error:', err);
-    } else {
-        // In production, log with error ID for correlation
-        console.error(`Error ID ${errorId}:`, err?.message || 'Unknown error');
-    }
-
     // Helper function to send response with validation
     const sendResponse = (status, message) => {
         if (!res || typeof res.status !== 'function') {
@@ -85,15 +86,24 @@ function errorHandler(err, req, res, next) {
             return;
         }
         const response = { error: message };
+        // Add errorId if in production
         if (errorId) {
             response.errorId = errorId;
         }
         return res.status(status).json(response);
     };
 
-    // Handle null/undefined errors
+    // Handle null/undefined errors early
     if (!err) {
         return sendResponse(500, '不明なエラーが発生しました。');
+    }
+
+    // Log detailed errors in development
+    if (isDevelopment) {
+        console.error('Error:', err);
+    } else {
+        // In production, log with error ID for correlation
+        console.error(`Error ID ${errorId}:`, err?.message || 'Unknown error');
     }
 
     const rawMessage = err.message || 'Unknown error';
