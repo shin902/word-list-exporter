@@ -46,9 +46,24 @@ describe('CORS Configuration', () => {
         expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5500');
     });
 
-    test('should block/warn when FRONTEND_URL not set in non-dev (e.g. test environment)', async () => {
-        // Simulate a non-dev environment (e.g. 'test') where we haven't set FRONTEND_URL
+    test('should block but NOT warn when FRONTEND_URL not set in test environment', async () => {
         process.env.NODE_ENV = 'test';
+        process.env.GEMINI_API_KEY = 'test-key';
+
+        const app = require('../../api/index');
+
+        // Should NOT log a warning in test env
+        expect(console.warn).not.toHaveBeenCalled();
+
+        const res = await request(app)
+            .get('/api/health')
+            .set('Origin', 'http://malicious.com');
+
+        expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    test('should warn when FRONTEND_URL not set in staging environment', async () => {
+        process.env.NODE_ENV = 'staging';
         process.env.GEMINI_API_KEY = 'test-key';
 
         const app = require('../../api/index');
@@ -60,7 +75,6 @@ describe('CORS Configuration', () => {
             .get('/api/health')
             .set('Origin', 'http://malicious.com');
 
-        // When origin is false, cors middleware usually doesn't set the ACAO header
         expect(res.headers['access-control-allow-origin']).toBeUndefined();
     });
 

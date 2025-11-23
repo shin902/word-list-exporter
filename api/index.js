@@ -14,7 +14,7 @@ app.use(helmet());
 const allowedOrigin = process.env.FRONTEND_URL ||
     (process.env.NODE_ENV === 'development' ? 'http://localhost:5500' : false);
 
-if (!allowedOrigin) {
+if (!allowedOrigin && process.env.NODE_ENV !== 'test') {
     console.warn('WARNING: FRONTEND_URL is not set. CORS will block all requests.');
 }
 
