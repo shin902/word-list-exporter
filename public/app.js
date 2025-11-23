@@ -296,7 +296,12 @@ if (startQuizBtn) {
         if (cards.length === 0) {
             alert('まずは単語を登録してください');
         } else {
-            startQuiz();
+            try {
+                startQuiz();
+            } catch (error) {
+                console.error('学習の開始に失敗しました:', error);
+                alert('エラーが発生しました: ' + error.message);
+            }
         }
     });
 }
