@@ -10,13 +10,17 @@ const router = express.Router();
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
 let store;
 
+if (process.env.NODE_ENV === 'production' && !redisUrl) {
+    throw new Error('FATAL: Redis (KV_URL or REDIS_URL) must be configured in production for rate limiting to work correctly in serverless environment.');
+}
+
 if (redisUrl) {
     const client = new Redis(redisUrl);
     store = new RedisStore({
         sendCommand: (...args) => client.call(...args),
     });
-} else if (process.env.NODE_ENV === 'production') {
-    console.warn('WARNING: Redis is not configured in production environment. Rate limiting will be ineffective across multiple instances (Serverless). Enforcing strict local limits.');
+} else {
+    console.warn('WARNING: Redis is not configured. Rate limiting will be ineffective in serverless environments.');
 }
 
 // レート制限の設定

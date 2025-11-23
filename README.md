@@ -54,6 +54,7 @@
    - `FRONTEND_URL`: フロントエンドのURL（CORS設定用）。開発環境では `http://localhost:5500` など、本番環境ではデプロイ先のURLを指定します。
    - `PORT`: サーバーのポート番号（デフォルト: 3000）
    - `NODE_ENV`: 環境設定（`development` または `production`）
+   - `KV_URL` または `REDIS_URL`: Redis接続URL（**本番環境では必須**）。レート制限の管理に使用されます。
 
 3. サーバーの起動（ローカル開発）
    ```bash

@@ -13,6 +13,11 @@ function validateConfig() {
 
     if (process.env.NODE_ENV === 'production') {
         required.push('FRONTEND_URL');
+
+        // Redis設定の確認 (KV_URL または REDIS_URL のいずれかが必要)
+        if (!process.env.KV_URL && !process.env.REDIS_URL) {
+            throw new Error('本番環境ではRedis (KV_URL または REDIS_URL) の設定が必須です。');
+        }
     }
 
     const missing = required.filter(key => !process.env[key]);
