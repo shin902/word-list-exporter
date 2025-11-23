@@ -46,14 +46,15 @@ describe('CORS Configuration', () => {
         expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5500');
     });
 
-    test('should block but NOT warn when FRONTEND_URL not set in test environment', async () => {
+    test('should block but NOT warn about FRONTEND_URL when not set in test environment', async () => {
         process.env.NODE_ENV = 'test';
         process.env.GEMINI_API_KEY = 'test-key';
 
         const app = require('../../api/index');
 
-        // Should NOT log a warning in test env
-        expect(console.warn).not.toHaveBeenCalled();
+        // Should NOT log a warning about FRONTEND_URL in test env
+        // Note: ocr.js might log a warning about Redis, so we only check for FRONTEND_URL warning
+        expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('WARNING: FRONTEND_URL is not set'));
 
         const res = await request(app)
             .get('/api/health')
@@ -81,6 +82,7 @@ describe('CORS Configuration', () => {
     test('should throw error in production when FRONTEND_URL is missing', () => {
         process.env.NODE_ENV = 'production';
         process.env.GEMINI_API_KEY = 'test-key';
+        process.env.KV_URL = 'redis://localhost:6379'; // Redis is required in production now
 
         // We need to catch the error thrown during module require
         expect(() => {
@@ -88,10 +90,24 @@ describe('CORS Configuration', () => {
         }).toThrow('必須の環境変数が設定されていません: FRONTEND_URL');
     });
 
+    test('should throw error in production when Redis is missing', () => {
+        process.env.NODE_ENV = 'production';
+        process.env.GEMINI_API_KEY = 'test-key';
+        process.env.FRONTEND_URL = 'https://production-app.com';
+        delete process.env.KV_URL;
+        delete process.env.REDIS_URL;
+
+        // We need to catch the error thrown during module require
+        expect(() => {
+            require('../../api/index');
+        }).toThrow('本番環境ではRedis (KV_URL または REDIS_URL) の設定が必須です。');
+    });
+
     test('should accept requests from FRONTEND_URL in production', async () => {
         process.env.NODE_ENV = 'production';
         process.env.GEMINI_API_KEY = 'test-key';
         process.env.FRONTEND_URL = 'https://production-app.com';
+        process.env.KV_URL = 'redis://localhost:6379'; // Redis is required in production now
 
         const app = require('../../api/index');
 
