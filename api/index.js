@@ -11,8 +11,15 @@ const app = express();
 
 // セキュリティ
 app.use(helmet());
+const allowedOrigin = process.env.FRONTEND_URL ||
+    (process.env.NODE_ENV === 'development' ? 'http://localhost:5500' : false);
+
+if (!allowedOrigin) {
+    console.warn('WARNING: FRONTEND_URL is not set. CORS will block all requests.');
+}
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || false,
+    origin: allowedOrigin,
     methods: ['POST', 'GET'],
     allowedHeaders: ['Content-Type'],
     credentials: false
