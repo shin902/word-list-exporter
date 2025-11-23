@@ -296,7 +296,12 @@ if (startQuizBtn) {
         if (cards.length === 0) {
             alert('まずは単語を登録してください');
         } else {
-            startQuiz();
+            try {
+                startQuiz();
+            } catch (error) {
+                console.error('学習の開始に失敗しました:', error);
+                alert('エラーが発生しました: ' + error.message);
+            }
         }
     });
 }
@@ -594,7 +599,7 @@ function initImportView() {
     isProcessingOCR = false; // 処理フラグもリセット
     document.getElementById('import-category-input').value = '英単語';
     document.getElementById('image-input').value = '';
-    document.getElementById('preview-canvas').style.display = 'none';
+    document.getElementById('preview-canvas').classList.add('hidden');
     document.getElementById('process-image-btn').disabled = true;
     updateImportStatus('');
     document.getElementById('import-preview').innerHTML = '';
@@ -641,7 +646,7 @@ function displayImagePreview(img) {
     canvas.height = img.height * scale;
 
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    canvas.style.display = 'block';
+    canvas.classList.remove('hidden');
 }
 
 // 画像をリサイズする関数
@@ -745,9 +750,8 @@ if (processImageBtn) {
 
             // 保存ボタンを表示
             const saveBtn = document.createElement('button');
-            saveBtn.className = 'primary-button';
+            saveBtn.className = 'primary-button save-all-btn';
             saveBtn.textContent = 'すべて保存';
-            saveBtn.style.marginTop = '20px';
             saveBtn.addEventListener('click', () => {
                 saveExtractedCards();
             });
@@ -950,8 +954,7 @@ function displayImportPreview(cards) {
     // ヘッダーを作成
     const header = document.createElement('h3');
     header.textContent = '検出されたカード（編集可能）:';
-    header.style.marginBottom = '15px';
-    header.style.color = '#333';
+    header.className = 'preview-section-title';
     previewDiv.appendChild(header);
 
     cards.forEach((card, index) => {
@@ -960,13 +963,11 @@ function displayImportPreview(cards) {
 
         // 問題セクション
         const questionDiv = document.createElement('div');
-        questionDiv.style.marginBottom = '10px';
+        questionDiv.className = 'preview-field-group';
 
         const questionLabel = document.createElement('label');
         questionLabel.textContent = '問題:';
-        questionLabel.style.display = 'block';
-        questionLabel.style.fontWeight = 'bold';
-        questionLabel.style.marginBottom = '5px';
+        questionLabel.className = 'preview-label';
 
         const questionInput = document.createElement('input');
         questionInput.type = 'text';
@@ -980,13 +981,11 @@ function displayImportPreview(cards) {
 
         // 答えセクション
         const answerDiv = document.createElement('div');
-        answerDiv.style.marginBottom = '10px';
+        answerDiv.className = 'preview-field-group';
 
         const answerLabel = document.createElement('label');
         answerLabel.textContent = '答え:';
-        answerLabel.style.display = 'block';
-        answerLabel.style.fontWeight = 'bold';
-        answerLabel.style.marginBottom = '5px';
+        answerLabel.className = 'preview-label';
 
         const answerInput = document.createElement('input');
         answerInput.type = 'text';
@@ -1003,13 +1002,6 @@ function displayImportPreview(cards) {
         deleteBtn.className = 'delete-preview-btn';
         deleteBtn.dataset.index = index;
         deleteBtn.textContent = '削除';
-        deleteBtn.style.backgroundColor = '#ff4444';
-        deleteBtn.style.color = 'white';
-        deleteBtn.style.border = 'none';
-        deleteBtn.style.padding = '5px 10px';
-        deleteBtn.style.borderRadius = '3px';
-        deleteBtn.style.cursor = 'pointer';
-        deleteBtn.style.fontSize = '12px';
 
         cardDiv.appendChild(questionDiv);
         cardDiv.appendChild(answerDiv);
