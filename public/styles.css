@@ -408,3 +408,42 @@ textarea.input-field {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* Import Preview Styles */
+.preview-canvas {
+    max-width: 100%;
+    border: 1px solid #ccc;
+}
+
+.preview-section-title {
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.preview-field-group {
+    margin-bottom: 10px;
+}
+
+.preview-label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.delete-preview-btn {
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.delete-preview-btn:hover {
+    background-color: #cc0000;
+}
+
+.save-all-btn {
+    margin-top: 20px;
+}
