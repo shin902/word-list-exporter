@@ -189,11 +189,11 @@ function deleteCard(idOrIndex) {
     }
 }
 
-// カード配列をシャッフル
+// カード配列をシャッフル（Fisher-Yatesアルゴリズム + 暗号学的に安全な乱数）
 function shuffleCards(cards) {
     const shuffled = [...cards];
     for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = secureRandomInt(i + 1);
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
@@ -1081,6 +1081,9 @@ if (typeof module !== 'undefined' && module.exports) {
         sanitizeInput,
         parseSubscriptSuperscript,
         debounce,
-        performOCR
+        performOCR,
+        shuffleCards,
+        secureRandom,
+        secureRandomInt
     };
 }
