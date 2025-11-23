@@ -19,6 +19,17 @@
 - ✅ ローカルストレージでのデータ永続化
 - ✅ 画像からの赤字抽出インポート機能（Gemini Vision API使用）
 
+## 動作環境
+
+本アプリケーションは、安全な乱数生成（Web Crypto API）をサポートする以下のモダンブラウザで動作します。
+
+- Google Chrome (最新版)
+- Mozilla Firefox (最新版)
+- Safari (最新版)
+- Microsoft Edge (最新版)
+
+※ Internet Explorer などの古いブラウザでは動作しません。
+
 ## 画像インポート機能
 
 画像から単語カードをインポートする機能は、バックエンドAPIを経由してGemini APIを利用します。
