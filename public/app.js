@@ -28,6 +28,30 @@ function generateUniqueId() {
 }
 
 /**
+ * 暗号学的に安全な0-1の乱数を生成
+ * @returns {number} 0以上1未満の乱数
+ * @throws {Error} crypto.getRandomValues()が利用できない場合
+ */
+function secureRandom() {
+    if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+        throw new Error('このブラウザでは安全な乱数生成がサポートされていません。');
+    }
+    const randomArray = new Uint32Array(1);
+    crypto.getRandomValues(randomArray);
+    return randomArray[0] / (0xFFFFFFFF + 1);
+}
+
+/**
+ * 暗号学的に安全な整数乱数を生成
+ * @param {number} max - 上限（含まない）
+ * @returns {number} 0以上max未満の整数（切り捨て）
+ * @throws {Error} crypto.getRandomValues()が利用できない場合
+ */
+function secureRandomInt(max) {
+    return Math.floor(secureRandom() * max);
+}
+
+/**
  * デバウンス関数 - 連続した関数呼び出しを遅延させる
  * @param {Function} func - デバウンスする関数
  * @param {number} wait - 待機時間（ミリ秒）
@@ -165,11 +189,11 @@ function deleteCard(idOrIndex) {
     }
 }
 
-// カード配列をシャッフル
+// カード配列をシャッフル（Fisher-Yatesアルゴリズム + 暗号学的に安全な乱数）
 function shuffleCards(cards) {
     const shuffled = [...cards];
     for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = secureRandomInt(i + 1);
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
@@ -1057,6 +1081,9 @@ if (typeof module !== 'undefined' && module.exports) {
         sanitizeInput,
         parseSubscriptSuperscript,
         debounce,
-        performOCR
+        performOCR,
+        shuffleCards,
+        secureRandom,
+        secureRandomInt
     };
 }
