@@ -1069,6 +1069,7 @@ function saveExtractedCards() {
 }
 
 // アプリケーションの初期化
+// Node.js環境（テスト時）での実行エラーを防ぐため、documentオブジェクトの存在チェックを行う
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
         initHomeView();
