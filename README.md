@@ -44,10 +44,16 @@
    ```
 
 2. 環境変数の設定
-   `.env.example` をコピーして `.env` を作成し、Gemini API Keyを設定してください。
+   `.env.example` をコピーして `.env` を作成し、必要な環境変数を設定してください。
    ```bash
    cp .env.example .env
    ```
+
+   **環境変数一覧:**
+   - `GEMINI_API_KEY`: Google Gemini APIのキー（必須）
+   - `FRONTEND_URL`: フロントエンドのURL（CORS設定用）。開発環境では `http://localhost:5500` など、本番環境ではデプロイ先のURLを指定します。
+   - `PORT`: サーバーのポート番号（デフォルト: 3000）
+   - `NODE_ENV`: 環境設定（`development` または `production`）
 
 3. サーバーの起動（ローカル開発）
    ```bash
