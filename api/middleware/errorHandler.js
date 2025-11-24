@@ -124,28 +124,15 @@ function errorHandler(err, req, res, next) {
     if (err && (err.status || err.statusCode)) {
         const status = err.status || err.statusCode;
 
-        // In production, use generic messages for better security
-        // In development, show sanitized original message
-        let messageForClient;
-        if (isDevelopment) {
-            messageForClient = rawMessage;
-        } else {
-            // For non-500 errors, try to use generic message first
-            messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
-        }
-
+        // Use generic messages or sanitized messages for better security in all environments
+        const messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
         return sendResponse(status, messageForClient);
     }
 
     // Default 500 error handling
-    // Production: Generic message with error ID for debugging
-    // Development: Full error details
-    if (isDevelopment) {
-        return sendResponse(500, rawMessage);
-    } else {
-        // Sanitized messages are good for debugging without exposing paths
-        return sendResponse(500, 'サーバーエラーが発生しました。しばらくしてから再試行してください。');
-    }
+    // Use generic message with error ID for debugging in all environments to prevent info disclosure
+    // Sanitized messages are good for debugging without exposing paths
+    return sendResponse(500, 'サーバーエラーが発生しました。しばらくしてから再試行してください。');
 }
 
 module.exports = errorHandler;
