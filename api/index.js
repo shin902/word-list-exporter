@@ -12,7 +12,7 @@ const app = express();
 // セキュリティ
 app.use(helmet());
 
-// FRONTEND_URL は config.js で検証済み
+// 本番環境では config.js で FRONTEND_URL が必須検証済み
 const allowedOrigin = process.env.FRONTEND_URL ||
     (process.env.NODE_ENV === 'development' ? 'http://localhost:5500' : false);
 
