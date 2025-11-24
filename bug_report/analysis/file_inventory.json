@@ -1,0 +1,325 @@
+{
+  "scan_date": "2025-11-24T00:39:52.602Z",
+  "total_files": 27,
+  "files": [
+    {
+      "path": "/home/user/word-list-exporter/.env.example",
+      "relative_path": ".env.example",
+      "language": "env",
+      "category": "config",
+      "size_bytes": 184,
+      "extension": ".example"
+    },
+    {
+      "path": "/home/user/word-list-exporter/.eslintrc.json",
+      "relative_path": ".eslintrc.json",
+      "language": "json",
+      "category": "config",
+      "size_bytes": 216,
+      "extension": ".json"
+    },
+    {
+      "path": "/home/user/word-list-exporter/.github/workflows/claude-code-review.yml",
+      "relative_path": ".github/workflows/claude-code-review.yml",
+      "language": "yaml",
+      "category": "config",
+      "size_bytes": 1964,
+      "extension": ".yml"
+    },
+    {
+      "path": "/home/user/word-list-exporter/.github/workflows/claude.yml",
+      "relative_path": ".github/workflows/claude.yml",
+      "language": "yaml",
+      "category": "config",
+      "size_bytes": 1898,
+      "extension": ".yml"
+    },
+    {
+      "path": "/home/user/word-list-exporter/api/__tests__/ocr.test.js",
+      "relative_path": "api/__tests__/ocr.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 4955,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/api/config.js",
+      "relative_path": "api/config.js",
+      "language": "javascript",
+      "category": "api",
+      "size_bytes": 1017,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/api/index.js",
+      "relative_path": "api/index.js",
+      "language": "javascript",
+      "category": "api",
+      "size_bytes": 1393,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/api/middleware/errorHandler.js",
+      "relative_path": "api/middleware/errorHandler.js",
+      "language": "javascript",
+      "category": "api",
+      "size_bytes": 6132,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/api/routes/ocr.js",
+      "relative_path": "api/routes/ocr.js",
+      "language": "javascript",
+      "category": "api",
+      "size_bytes": 4281,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/api/utils/gemini.js",
+      "relative_path": "api/utils/gemini.js",
+      "language": "javascript",
+      "category": "api",
+      "size_bytes": 2960,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/package-lock.json",
+      "relative_path": "package-lock.json",
+      "language": "json",
+      "category": "config",
+      "size_bytes": 203297,
+      "extension": ".json"
+    },
+    {
+      "path": "/home/user/word-list-exporter/package.json",
+      "relative_path": "package.json",
+      "language": "json",
+      "category": "config",
+      "size_bytes": 1337,
+      "extension": ".json"
+    },
+    {
+      "path": "/home/user/word-list-exporter/public/app.js",
+      "relative_path": "public/app.js",
+      "language": "javascript",
+      "category": "frontend",
+      "size_bytes": 39531,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/public/index.html",
+      "relative_path": "public/index.html",
+      "language": "html",
+      "category": "frontend",
+      "size_bytes": 5360,
+      "extension": ".html"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/integration/cors.test.js",
+      "relative_path": "tests/integration/cors.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 4592,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/integration/errorHandler.integration.test.js",
+      "relative_path": "tests/integration/errorHandler.integration.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 12833,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/integration/migration.test.js",
+      "relative_path": "tests/integration/migration.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 10680,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/integration/ocr-workflow.test.js",
+      "relative_path": "tests/integration/ocr-workflow.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 6917,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/repro_vuln_003.test.js",
+      "relative_path": "tests/repro_vuln_003.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 2475,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/repro_vuln_008.test.js",
+      "relative_path": "tests/repro_vuln_008.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 1757,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/setup.js",
+      "relative_path": "tests/setup.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 3418,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/unit/errorHandler.test.js",
+      "relative_path": "tests/unit/errorHandler.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 14387,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/unit/parsing.test.js",
+      "relative_path": "tests/unit/parsing.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 8724,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/unit/secureRandom.test.js",
+      "relative_path": "tests/unit/secureRandom.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 4593,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/unit/validation.test.js",
+      "relative_path": "tests/unit/validation.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 10292,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/tests/vuln-002.test.js",
+      "relative_path": "tests/vuln-002.test.js",
+      "language": "javascript",
+      "category": "test",
+      "size_bytes": 1438,
+      "extension": ".js"
+    },
+    {
+      "path": "/home/user/word-list-exporter/vercel.json",
+      "relative_path": "vercel.json",
+      "language": "json",
+      "category": "config",
+      "size_bytes": 505,
+      "extension": ".json"
+    }
+  ],
+  "by_language": {
+    "env": {
+      "count": 1,
+      "files": [
+        ".env.example"
+      ]
+    },
+    "json": {
+      "count": 4,
+      "files": [
+        ".eslintrc.json",
+        "package-lock.json",
+        "package.json",
+        "vercel.json"
+      ]
+    },
+    "yaml": {
+      "count": 2,
+      "files": [
+        ".github/workflows/claude-code-review.yml",
+        ".github/workflows/claude.yml"
+      ]
+    },
+    "javascript": {
+      "count": 19,
+      "files": [
+        "api/__tests__/ocr.test.js",
+        "api/config.js",
+        "api/index.js",
+        "api/middleware/errorHandler.js",
+        "api/routes/ocr.js",
+        "api/utils/gemini.js",
+        "public/app.js",
+        "tests/integration/cors.test.js",
+        "tests/integration/errorHandler.integration.test.js",
+        "tests/integration/migration.test.js",
+        "tests/integration/ocr-workflow.test.js",
+        "tests/repro_vuln_003.test.js",
+        "tests/repro_vuln_008.test.js",
+        "tests/setup.js",
+        "tests/unit/errorHandler.test.js",
+        "tests/unit/parsing.test.js",
+        "tests/unit/secureRandom.test.js",
+        "tests/unit/validation.test.js",
+        "tests/vuln-002.test.js"
+      ]
+    },
+    "html": {
+      "count": 1,
+      "files": [
+        "public/index.html"
+      ]
+    }
+  },
+  "by_category": {
+    "config": {
+      "count": 7,
+      "files": [
+        ".env.example",
+        ".eslintrc.json",
+        ".github/workflows/claude-code-review.yml",
+        ".github/workflows/claude.yml",
+        "package-lock.json",
+        "package.json",
+        "vercel.json"
+      ]
+    },
+    "test": {
+      "count": 13,
+      "files": [
+        "api/__tests__/ocr.test.js",
+        "tests/integration/cors.test.js",
+        "tests/integration/errorHandler.integration.test.js",
+        "tests/integration/migration.test.js",
+        "tests/integration/ocr-workflow.test.js",
+        "tests/repro_vuln_003.test.js",
+        "tests/repro_vuln_008.test.js",
+        "tests/setup.js",
+        "tests/unit/errorHandler.test.js",
+        "tests/unit/parsing.test.js",
+        "tests/unit/secureRandom.test.js",
+        "tests/unit/validation.test.js",
+        "tests/vuln-002.test.js"
+      ]
+    },
+    "api": {
+      "count": 5,
+      "files": [
+        "api/config.js",
+        "api/index.js",
+        "api/middleware/errorHandler.js",
+        "api/routes/ocr.js",
+        "api/utils/gemini.js"
+      ]
+    },
+    "frontend": {
+      "count": 2,
+      "files": [
+        "public/app.js",
+        "public/index.html"
+      ]
+    }
+  }
+}
