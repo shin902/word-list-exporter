@@ -46,6 +46,18 @@ describe('CORS Configuration', () => {
         expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5500');
     });
 
+    test('should log info message in development when using default CORS', async () => {
+        process.env.NODE_ENV = 'development';
+        process.env.GEMINI_API_KEY = 'test-key';
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+
+        require('../../api/index');
+
+        expect(console.log).toHaveBeenCalledWith(
+            expect.stringContaining('INFO: Using default CORS origin')
+        );
+    });
+
     test('should block but NOT warn about FRONTEND_URL when not set in test environment', async () => {
         process.env.NODE_ENV = 'test';
         process.env.GEMINI_API_KEY = 'test-key';
