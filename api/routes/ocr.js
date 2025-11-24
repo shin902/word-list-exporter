@@ -73,6 +73,8 @@ router.post('/', limiter, async (req, res, next) => {
 
         // Base64文字のみで構成されているか検証
         // ReDoSを避けるため、複雑なキャプチャやバックトラックを含まない単純な文字クラスのみを使用
+        // Note: 文字種のみをチェックしており、パディングや長さの整合性は検証していません。
+        // これはNode.jsのBuffer.fromが柔軟に対応するためと、高速化のためです。
         const base64Regex = /^[A-Za-z0-9+/=]*$/;
         if (!base64Regex.test(cleanedBase64Data)) {
             return res.status(400).json({ error: '無効なBase64形式です' });
