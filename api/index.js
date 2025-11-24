@@ -12,20 +12,18 @@ const app = express();
 // セキュリティ
 app.use(helmet());
 
-// 本番環境でのFRONTEND_URL必須化
-if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-    throw new Error('FATAL: FRONTEND_URL must be configured in production');
-}
-
+// FRONTEND_URL は config.js で検証済み
 const allowedOrigin = process.env.FRONTEND_URL ||
     (process.env.NODE_ENV === 'development' ? 'http://localhost:5500' : false);
 
-if (!allowedOrigin && process.env.NODE_ENV !== 'test') {
-    console.warn('WARNING: FRONTEND_URL is not set. CORS will block all requests.');
-}
-
+// 開発環境での情報表示
 if (process.env.NODE_ENV === 'development' && !process.env.FRONTEND_URL) {
     console.log('INFO: Using default CORS origin http://localhost:5500. Set FRONTEND_URL to override.');
+}
+
+// テスト環境以外でフォールバックが発生した場合の警告
+if (!allowedOrigin && process.env.NODE_ENV !== 'test') {
+    console.warn('WARNING: FRONTEND_URL is not set. CORS will block all requests.');
 }
 
 app.use(cors({
