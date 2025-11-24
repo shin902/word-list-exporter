@@ -71,15 +71,12 @@ router.post('/', limiter, async (req, res, next) => {
         // 簡易的な文字チェックのみ行うか、デコード時のエラーハンドリングに任せる
         const cleanedBase64Data = base64Data.replace(/\s/g, '');
 
-        // 簡易チェック: Base64文字以外が含まれていないか
-        // Note: 完全なBase64検証は高コストなため、ここでは明らかに不正な文字のみチェックするか、
-        // Buffer.fromでのデコード結果を信頼する。
-        // ここでは、正規表現による全文スキャンを避けるため、チェックを省略し
-        // performOCR内での処理に任せるか、必要ならより軽量なチェックを実装する。
-        // しかし、gemini apiに送る前に最低限のチェックはしておきたい。
-        // Node.jsのBufferは非Base64文字を無視する仕様があるため、
-        // 厳密なチェックが必要ならバリデーターライブラリを使うべきだが、
-        // ここではReDoS回避のため正規表現チェックを削除する。
+        // Base64文字のみで構成されているか検証
+        // ReDoSを避けるため、複雑なキャプチャやバックトラックを含まない単純な文字クラスのみを使用
+        const base64Regex = /^[A-Za-z0-9+/=]*$/;
+        if (!base64Regex.test(cleanedBase64Data)) {
+            return res.status(400).json({ error: '無効なBase64形式です' });
+        }
 
         // OCR実行 (クリーンアップされたBase64データを使用)
         const result = await performOCR(cleanedBase64Data);
