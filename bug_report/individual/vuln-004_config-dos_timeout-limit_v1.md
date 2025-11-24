@@ -130,10 +130,102 @@ curl -X POST https://your-vercel-app.vercel.app/api/ocr \
 - [ ] モニタリングとアラート: タイムアウトの頻度を監視し、閾値を超えた場合にアラート
 - [ ] レート制限の見直し: 大きな画像のリクエストに対してより厳しいレート制限を適用
 
+## 🔧 実装計画
+
+### 仕様レビュー結果（2025-11-24）
+
+#### 現状分析
+- **クライアント側の画像処理（既存実装）**
+  - リサイズ: 最大1024px（`public/app.js:724`）
+  - 圧縮: JPEG 80%品質（`public/app.js:864`）
+  - 結果: 通常200〜500KB、最大でも1MB程度
+  - **変更不要** - 既に適切に実装済み
+
+- **サーバー側の制限（現在の問題）**
+  - `express.json({ limit: '5mb' })` - 緩すぎる
+  - `MAX_BASE64_SIZE: 5MB` - 緩すぎる
+  - `maxDuration: 10秒` - 短すぎる（タイムアウトリスク）
+
+#### 設計方針
+1. **クライアント側の処理は信頼できない**
+   - ブラウザ開発者ツールで改変可能
+   - 攻撃者が直接大きなBase64データをPOSTできる
+   - **サーバー側で厳格な制限が必須**
+
+2. **Base64エンコードによるサイズ増加を考慮**
+   - 1MBの画像データ → Base64で約1.33MB
+   - JSONメタデータ（`{"image":"data:image/jpeg;base64,...}`）を含む
+   - HTTPリクエスト全体: 約1.35〜1.4MB
+
+3. **Vercel無料プランの制限**
+   - maxDuration: 10〜60秒の範囲で設定可能
+   - 30秒が妥当（画像OCRには十分、かつ過度に長くない）
+
+### 実装内容
+
+#### 1. Vercelタイムアウトの延長
+**ファイル**: `vercel.json`
+
+```json
+"functions": {
+  "api/**/*.js": {
+    "maxDuration": 30,  // 10 → 30秒
+    "memory": 1024
+  }
+}
+```
+
+**理由**:
+- Vercel無料プラン（Hobby）の範囲内（最大60秒）
+- 1MB以下の画像処理には十分な時間
+- タイムアウトリスクを大幅に軽減
+
+#### 2. Base64データサイズの厳格化
+**ファイル**: `api/routes/ocr.js` (L64)
+
+```javascript
+// Before
+const MAX_BASE64_SIZE = 5 * 1024 * 1024; // 5MB
+
+// After
+const MAX_BASE64_SIZE = 1 * 1024 * 1024; // 1MB
+```
+
+**理由**:
+- クライアント側で圧縮された画像は1MB以下
+- サーバー側で最終的な防御ライン
+- DoS攻撃リスクを軽減
+
+#### 3. HTTPリクエストサイズの最適化
+**ファイル**: `api/index.js` (L38)
+
+```javascript
+// Before
+app.use(express.json({ limit: '5mb' }));
+
+// After
+app.use(express.json({ limit: '1.5mb' }));
+```
+
+**理由**:
+- Base64エンコード後（1.33MB）+ JSONメタデータを考慮
+- 正常なリクエスト（1.4MB程度）は通過
+- 異常に大きなリクエスト（2MB以上）を早期に拒否
+- メモリ消費を抑制
+
+### 検証項目
+- [ ] 正常な画像（500KB程度）のアップロードが成功すること
+- [ ] 1MB以下の画像が処理できること
+- [ ] 1MBを超えるBase64データが拒否されること
+- [ ] タイムアウトが30秒に設定されていること
+- [ ] 1.5MBを超えるHTTPリクエストが拒否されること
+
 ## 🔗 参考
 - OWASP: https://owasp.org/www-community/attacks/Denial_of_Service
 - CWE: https://cwe.mitre.org/data/definitions/770.html
 - Vercel Functions: https://vercel.com/docs/functions/serverless-functions/runtimes#max-duration
+- Vercel Limits: https://vercel.com/docs/limits
 
 ---
 *Iteration 1 | 2025-11-24 00:48:00 JST*
+*Implementation Plan Added | 2025-11-24*
