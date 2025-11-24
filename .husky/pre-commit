@@ -1,0 +1,2 @@
+npm test
+./scripts/check-secrets.sh
