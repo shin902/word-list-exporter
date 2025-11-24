@@ -1,6 +1,10 @@
 const request = require('supertest');
 const express = require('express');
 const errorHandler = require('../../api/middleware/errorHandler');
+const crypto = require('crypto');
+
+// Mock crypto.randomUUID for predictable testing if needed, but not strictly required here
+// unless we want to assert the exact format of errorId.
 
 describe('Error Handler Integration Tests', () => {
     let app;
@@ -9,10 +13,13 @@ describe('Error Handler Integration Tests', () => {
     beforeEach(() => {
         app = express();
         app.use(express.json());
+        // Suppress console.error during tests to keep output clean
+        jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     afterEach(() => {
         process.env.NODE_ENV = originalEnv;
+        jest.restoreAllMocks();
     });
 
     describe('Production Environment', () => {
@@ -130,7 +137,7 @@ describe('Error Handler Integration Tests', () => {
             process.env.NODE_ENV = 'development';
         });
 
-        it('should return detailed error messages in development', async () => {
+        it('should return GENERIC error messages in development for 500 errors', async () => {
             app.get('/test', (req, res) => {
                 throw new Error('Detailed error: Failed to connect to database at localhost:5432');
             });
@@ -139,12 +146,15 @@ describe('Error Handler Integration Tests', () => {
             const response = await request(app).get('/test');
 
             expect(response.status).toBe(500);
-            expect(response.body.error).toContain('Detailed error');
-            expect(response.body.error).toContain('database');
-            expect(response.body.errorId).toBeUndefined();
+            // Expect generic message now
+            expect(response.body.error).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
+            expect(response.body.error).not.toContain('Detailed error');
+            expect(response.body.error).not.toContain('database');
+            // Expect errorId now
+            expect(response.body.errorId).toBeDefined();
         });
 
-        it('should NOT include errorId in development', async () => {
+        it('should INCLUDE errorId in development', async () => {
             app.get('/test', (req, res) => {
                 throw new Error('Test error');
             });
@@ -152,10 +162,10 @@ describe('Error Handler Integration Tests', () => {
 
             const response = await request(app).get('/test');
 
-            expect(response.body.errorId).toBeUndefined();
+            expect(response.body.errorId).toBeDefined();
         });
 
-        it('should show full path information in development', async () => {
+        it('should sanitize paths in development when status is present', async () => {
             app.get('/test', (req, res) => {
                 const err = new Error('Cannot access /var/log/app.log');
                 err.status = 403;
@@ -166,7 +176,12 @@ describe('Error Handler Integration Tests', () => {
             const response = await request(app).get('/test');
 
             expect(response.status).toBe(403);
-            expect(response.body.error).toContain('/var/log/app.log');
+            // Should contain sanitized path placeholder or be generic
+            if (response.body.error.includes('[PATH]')) {
+                expect(response.body.error).not.toContain('/var/log/app.log');
+            } else {
+                expect(response.body.error).toBe('アクセスが拒否されました。');
+            }
         });
     });
 

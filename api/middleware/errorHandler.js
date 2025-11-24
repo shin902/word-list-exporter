@@ -76,8 +76,8 @@ function errorHandler(err, req, res, next) {
     // Determine environment (default to production for safety)
     const isDevelopment = process.env.NODE_ENV === 'development';
 
-    // Generate unique error ID for production debugging
-    const errorId = isDevelopment ? null : crypto.randomUUID();
+    // Generate unique error ID for debugging in all environments
+    const errorId = crypto.randomUUID();
 
     // Helper function to send response with validation
     const sendResponse = (status, message) => {
@@ -86,7 +86,7 @@ function errorHandler(err, req, res, next) {
             return;
         }
         const response = { error: message };
-        // Add errorId if in production
+        // Add errorId in all environments for correlation
         if (errorId) {
             response.errorId = errorId;
         }
@@ -98,9 +98,9 @@ function errorHandler(err, req, res, next) {
         return sendResponse(500, '不明なエラーが発生しました。');
     }
 
-    // Log detailed errors in development
+    // Log detailed errors in development, but include errorId for correlation
     if (isDevelopment) {
-        console.error('Error:', err);
+        console.error(`Error ID ${errorId}:`, err);
     } else {
         // In production, log with error ID for correlation
         console.error(`Error ID ${errorId}:`, err?.message || 'Unknown error');
@@ -124,28 +124,15 @@ function errorHandler(err, req, res, next) {
     if (err && (err.status || err.statusCode)) {
         const status = err.status || err.statusCode;
 
-        // In production, use generic messages for better security
-        // In development, show sanitized original message
-        let messageForClient;
-        if (isDevelopment) {
-            messageForClient = rawMessage;
-        } else {
-            // For non-500 errors, try to use generic message first
-            messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
-        }
-
+        // Use generic messages or sanitized messages for better security in all environments
+        const messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
         return sendResponse(status, messageForClient);
     }
 
     // Default 500 error handling
-    // Production: Generic message with error ID for debugging
-    // Development: Full error details
-    if (isDevelopment) {
-        return sendResponse(500, rawMessage);
-    } else {
-        // Sanitized messages are good for debugging without exposing paths
-        return sendResponse(500, 'サーバーエラーが発生しました。しばらくしてから再試行してください。');
-    }
+    // Use generic message with error ID for debugging in all environments to prevent info disclosure
+    // Sanitized messages are good for debugging without exposing paths
+    return sendResponse(500, 'サーバーエラーが発生しました。しばらくしてから再試行してください。');
 }
 
 module.exports = errorHandler;
