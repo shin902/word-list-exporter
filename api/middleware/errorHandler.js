@@ -76,8 +76,8 @@ function errorHandler(err, req, res, next) {
     // Determine environment (default to production for safety)
     const isDevelopment = process.env.NODE_ENV === 'development';
 
-    // Generate unique error ID for production debugging
-    const errorId = isDevelopment ? null : crypto.randomUUID();
+    // Generate unique error ID for debugging in all environments
+    const errorId = crypto.randomUUID();
 
     // Helper function to send response with validation
     const sendResponse = (status, message) => {
@@ -86,7 +86,7 @@ function errorHandler(err, req, res, next) {
             return;
         }
         const response = { error: message };
-        // Add errorId if in production
+        // Add errorId in all environments for correlation
         if (errorId) {
             response.errorId = errorId;
         }
@@ -98,9 +98,9 @@ function errorHandler(err, req, res, next) {
         return sendResponse(500, '不明なエラーが発生しました。');
     }
 
-    // Log detailed errors in development
+    // Log detailed errors in development, but include errorId for correlation
     if (isDevelopment) {
-        console.error('Error:', err);
+        console.error(`Error ID ${errorId}:`, err);
     } else {
         // In production, log with error ID for correlation
         console.error(`Error ID ${errorId}:`, err?.message || 'Unknown error');

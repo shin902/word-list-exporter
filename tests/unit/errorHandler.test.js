@@ -209,44 +209,52 @@ describe('Error Handler Middleware', () => {
             process.env.NODE_ENV = 'development';
         });
 
-        it('should return detailed error message in development', () => {
+        // Fixed behavior: Development environment should also return generic/sanitized messages
+        it('should return generic error message in development for 500 errors', () => {
             const err = new Error('Detailed internal error message');
             errorHandler(err, req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(500);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({
+                    error: 'サーバーエラーが発生しました。しばらくしてから再試行してください。'
+                })
+            );
+            // Should NOT contain the detailed message
+            expect(res.json).not.toHaveBeenCalledWith(
+                expect.objectContaining({
                     error: 'Detailed internal error message'
                 })
             );
         });
 
-        it('should NOT include errorId in development', () => {
+        // Fixed behavior: Development environment should include errorId for consistency
+        it('should include errorId in development', () => {
             const err = new Error('Some error');
             errorHandler(err, req, res, next);
 
             expect(res.json).toHaveBeenCalledWith(
-                expect.not.objectContaining({
+                expect.objectContaining({
                     errorId: expect.any(String)
                 })
             );
         });
 
-        it('should NOT sanitize paths in development for status errors', () => {
-            const err = { status: 400, message: 'Failed to load /etc/passwd' };
+        it('should sanitize paths in development for status errors', () => {
+            const err = { status: 418, message: 'Failed to load /etc/passwd' };
             errorHandler(err, req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith({
-                error: 'Failed to load /etc/passwd'
-            });
+            expect(res.status).toHaveBeenCalledWith(418);
+            const errorMessage = res.json.mock.calls[0][0].error;
+            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).not.toContain('/etc/passwd');
         });
 
         it('should log full error details in development', () => {
             const err = new Error('Test error');
             errorHandler(err, req, res, next);
 
-            expect(console.error).toHaveBeenCalledWith('Error:', err);
+            expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Error ID'), err);
         });
 
         it('should handle statusCode property (alternative to status)', () => {
@@ -255,8 +263,22 @@ describe('Error Handler Middleware', () => {
 
             expect(res.status).toHaveBeenCalledWith(401);
             expect(res.json).toHaveBeenCalledWith({
-                error: 'Unauthorized'
+                error: '認証が必要です。', // Generic message for 401
+                errorId: expect.any(String)
             });
+        });
+
+        // Regression test for Vuln-001
+        it('should NOT disclose sensitive path information (Vuln-001 Regression)', () => {
+            const sensitiveMessage = 'Error: /home/user/secret/config.json not found';
+            const err = new Error(sensitiveMessage);
+
+            errorHandler(err, req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            const jsonResponse = res.json.mock.calls[0][0];
+            expect(jsonResponse.error).not.toContain('/home/user/secret/config.json');
+            expect(jsonResponse.error).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
         });
     });
 
