@@ -1,0 +1,21 @@
+{
+  "scan_id": "scan-20241025-001",
+  "start_time": "2024-10-25T10:00:00Z",
+  "end_time": "2024-10-25T10:15:00Z",
+  "iterations": 2,
+  "total_vulnerabilities": 2,
+  "history": [
+    {
+      "iteration": 1,
+      "new_findings": 2,
+      "files_scanned": 10,
+      "findings": ["vuln-001", "vuln-002"]
+    },
+    {
+      "iteration": 2,
+      "new_findings": 0,
+      "files_scanned": 10,
+      "findings": []
+    }
+  ]
+}

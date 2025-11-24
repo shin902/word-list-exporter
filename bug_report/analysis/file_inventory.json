@@ -1,0 +1,15 @@
+{
+  "files": [
+    { "path": "package.json", "type": "config" },
+    { "path": "vercel.json", "type": "config" },
+    { "path": "api/index.js", "type": "javascript" },
+    { "path": "api/config.js", "type": "javascript" },
+    { "path": "api/middleware/errorHandler.js", "type": "javascript" },
+    { "path": "api/routes/ocr.js", "type": "javascript" },
+    { "path": "api/utils/gemini.js", "type": "javascript" },
+    { "path": "public/index.html", "type": "html" },
+    { "path": "public/app.js", "type": "javascript" },
+    { "path": "public/styles.css", "type": "css" }
+  ],
+  "scan_date": "2024-10-25"
+}
