@@ -80,6 +80,11 @@ router.post('/', limiter, async (req, res, next) => {
             return res.status(400).json({ error: '無効なBase64形式です' });
         }
 
+        // ホワイトスペース除去後のデータが空でないか確認
+        if (cleanedBase64Data.length === 0) {
+            return res.status(400).json({ error: '画像データの解析に失敗しました' });
+        }
+
         // OCR実行 (クリーンアップされたBase64データを使用)
         const result = await performOCR(cleanedBase64Data);
 

@@ -70,20 +70,36 @@ describe('OCR Validation Integration Tests', () => {
                 .post('/api/ocr')
                 .send({ image: `data:image/jpeg;base64,${emptyBase64}` });
 
-            // Depending on implementation, empty string matches regex ^[...]*$
-            // However, performOCR or other logic might complain if it expects content.
-            // Let's see current behavior.
-            // In ocr.js:
-            // const base64Data = image.split(',')[1];
-            // if (!base64Data) { return res.status(400)... }
-            // So if we send "data:image/jpeg;base64," -> split gives ["data:...", ""] -> base64Data is ""
-            // "if (!base64Data)" check: "" is falsy.
-            // So it should return 400 "画像データの解析に失敗しました" (Failed to parse image data)
-            // Wait, check ocr.js code again.
-
             expect(res.status).toBe(400);
-            // The error message for empty base64Data in ocr.js
             expect(res.body.error).toBe('画像データの解析に失敗しました');
         });
+
+        it('should reject whitespace-only Base64 data', async () => {
+            // "   \n  " -> cleaned becomes ""
+            // Regex ^[...]*$ matches "", so previously it would pass validation
+            // But we should reject it as empty data
+            const whitespaceBase64 = "   \n  \t  ";
+
+            const res = await request(app)
+                .post('/api/ocr')
+                .send({ image: `data:image/jpeg;base64,${whitespaceBase64}` });
+
+            expect(res.status).toBe(400);
+            // We expect this to hit the new check we will add
+            expect(res.body.error).toBe('画像データの解析に失敗しました');
+        });
+
+        it('should accept large valid Base64 payload (within limit)', async () => {
+            // 4MB Base64 string (approx 3MB raw data)
+            // 'a' is valid base64 char
+            const largeBase64 = 'a'.repeat(4 * 1024 * 1024);
+
+            const res = await request(app)
+                .post('/api/ocr')
+                .send({ image: `data:image/jpeg;base64,${largeBase64}` });
+
+            expect(res.status).toBe(200);
+            expect(gemini.performOCR).toHaveBeenCalled();
+        }, 10000); // Increase timeout for large payload
     });
 });
