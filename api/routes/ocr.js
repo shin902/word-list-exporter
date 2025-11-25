@@ -25,8 +25,12 @@ function initializeTimer() {
         failedValidationCounter.clear();
     }, COUNTER_RESET_INTERVAL);
     // Node.js環境でのみunref()を呼び出す（jsdom環境では利用不可）
-    if (typeof counterResetTimer.unref === 'function') {
-        counterResetTimer.unref();
+    try {
+        if (typeof counterResetTimer.unref === 'function') {
+            counterResetTimer.unref();
+        }
+    } catch (e) {
+        // Ignore unref errors in non-Node environments
     }
 }
 
@@ -161,7 +165,7 @@ function sanitizeClientIp(ip) {
  * @param {number} status - HTTPステータスコード
  * @param {string} message - エラーメッセージ
  * @param {string} clientIp - クライアントIPアドレス
- * @returns {void}
+ * @returns {Object} Expressレスポンスオブジェクト（ルートハンドラでの早期リターン用）
  */
 function sendValidationError(res, status, message, clientIp) {
     const errorId = crypto.randomUUID();
