@@ -1,0 +1,2 @@
+#!/bin/sh
+./scripts/check-secrets.sh || exit 1
