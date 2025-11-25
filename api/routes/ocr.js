@@ -60,8 +60,8 @@ router.post('/', limiter, async (req, res, next) => {
             return res.status(400).json({ error: '画像データの解析に失敗しました' });
         }
 
-        // Base64データサイズの制限（例: 5MB）
-        const MAX_BASE64_SIZE = 5 * 1024 * 1024;
+        // Base64データサイズの制限（1MB - クライアント側で圧縮済みの画像を想定）
+        const MAX_BASE64_SIZE = 1 * 1024 * 1024;
         if (base64Data.length > MAX_BASE64_SIZE) {
             return res.status(413).json({ error: '画像データが大きすぎます' });
         }

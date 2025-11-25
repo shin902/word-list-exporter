@@ -34,8 +34,8 @@ app.use(cors({
     credentials: false
 }));
 
-// ボディパーサー（画像サイズを考慮）
-app.use(express.json({ limit: '5mb' }));
+// ボディパーサー（Base64エンコード後1MB + JSONメタデータを考慮）
+app.use(express.json({ limit: '1.5mb' }));
 
 // 静的ファイルの配信（ローカル開発用）
 app.use(express.static(path.join(__dirname, '../public')));

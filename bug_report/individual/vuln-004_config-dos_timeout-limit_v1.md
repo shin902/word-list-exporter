@@ -12,7 +12,8 @@ cvss_score: 3.1
 severity: Low
 priority: P3
 discovered: 2025-11-24 00:48
-status: New
+status: Fixed
+fixed: 2025-11-25
 related_vulns: []
 ```
 
