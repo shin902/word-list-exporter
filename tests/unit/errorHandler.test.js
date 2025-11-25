@@ -254,7 +254,14 @@ describe('Error Handler Middleware', () => {
             const err = new Error('Test error');
             errorHandler(err, req, res, next);
 
-            expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Error ID'), err);
+            expect(console.error).toHaveBeenCalledWith(
+                expect.stringContaining('Error ID'),
+                expect.objectContaining({
+                    message: 'Test error',
+                    name: 'Error',
+                    stack: expect.any(String)
+                })
+            );
         });
 
         it('should handle statusCode property (alternative to status)', () => {

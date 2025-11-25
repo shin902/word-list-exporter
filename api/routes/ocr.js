@@ -11,11 +11,38 @@ const failedValidationCounter = new Map();
 const FAILED_VALIDATION_THRESHOLD = 10; // 10回の失敗でアラート
 const COUNTER_RESET_INTERVAL = 15 * 60 * 1000; // 15分でリセット
 
-// 定期的にカウンターをリセット（テスト環境でプロセスが終了できるようにunref()を使用）
-const counterResetTimer = setInterval(() => {
-    failedValidationCounter.clear();
-}, COUNTER_RESET_INTERVAL);
-counterResetTimer.unref();
+// タイマー管理
+let counterResetTimer = null;
+
+/**
+ * カウンターリセットタイマーを初期化
+ * テスト環境でプロセスが正常に終了できるようにunref()を使用
+ */
+function initializeTimer() {
+    if (counterResetTimer) return;
+    counterResetTimer = setInterval(() => {
+        failedValidationCounter.clear();
+    }, COUNTER_RESET_INTERVAL);
+    try {
+        counterResetTimer.unref();
+    } catch (e) {
+        // テスト環境（jsdom等）では無視
+    }
+}
+
+/**
+ * カウンターリセットタイマーをクリア
+ * テストのクリーンアップ用
+ */
+function clearTimer() {
+    if (counterResetTimer) {
+        clearInterval(counterResetTimer);
+        counterResetTimer = null;
+    }
+}
+
+// タイマーを初期化
+initializeTimer();
 
 // Redisクライアントの初期化（環境変数が設定されている場合）
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
@@ -197,3 +224,4 @@ router.post('/', strictLimiter, async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.clearTimer = clearTimer;

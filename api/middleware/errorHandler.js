@@ -64,18 +64,15 @@ function getGenericMessageForStatus(status) {
 }
 
 /**
- * Express error handler middleware with environment-aware error handling
- * - Development: Returns detailed error messages for debugging
- * - Production: Returns sanitized, generic messages to prevent information disclosure
+ * Express error handler middleware with secure error handling
+ * - All environments: Returns sanitized, generic messages to prevent information disclosure
+ * - Detailed errors are logged server-side only with errorId for correlation
  * @param {Error} err - Error object
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
  */
 function errorHandler(err, req, res, next) {
-    // Determine environment (default to production for safety)
-    const isDevelopment = process.env.NODE_ENV === 'development';
-
     // Generate unique error ID for debugging in all environments
     const errorId = crypto.randomUUID();
 
@@ -93,18 +90,24 @@ function errorHandler(err, req, res, next) {
         return res.status(status).json(response);
     };
 
+    // Generate timestamp for logging
+    const timestamp = new Date().toISOString();
+
     // Handle null/undefined errors early
     if (!err) {
+        console.error(`Error ID ${errorId} [${timestamp}]:`, {
+            message: 'Unknown error (null/undefined)'
+        });
         return sendResponse(500, '不明なエラーが発生しました。');
     }
 
-    // Log detailed errors in development, but include errorId for correlation
-    if (isDevelopment) {
-        console.error(`Error ID ${errorId}:`, err);
-    } else {
-        // In production, log with error ID for correlation
-        console.error(`Error ID ${errorId}:`, err?.message || 'Unknown error');
-    }
+    // Log detailed errors with errorId and timestamp for correlation (server-side only)
+    console.error(`Error ID ${errorId} [${timestamp}]:`, {
+        message: err?.message || 'Unknown error',
+        stack: err?.stack,
+        name: err?.name,
+        status: err?.status || err?.statusCode
+    });
 
     const rawMessage = err.message || 'Unknown error';
 
