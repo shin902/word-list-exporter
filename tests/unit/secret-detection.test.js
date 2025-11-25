@@ -15,16 +15,13 @@ describe('Secret Detection', () => {
   });
 
   afterEach(() => {
-    // Cleanup
-    if (fs.existsSync(tmpFilePath)) {
-      fs.unlinkSync(tmpFilePath);
-    }
-    // Remove other files and dir
-    if (fs.existsSync(path.join(tmpDir, '.env'))) fs.unlinkSync(path.join(tmpDir, '.env'));
-    if (fs.existsSync(path.join(tmpDir, '.git'))) fs.rmSync(path.join(tmpDir, '.git'), { recursive: true, force: true });
-
-    if (fs.existsSync(tmpDir)) {
-      fs.rmdirSync(tmpDir);
+    try {
+      // Cleanup
+      if (fs.existsSync(tmpDir)) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    } catch (e) {
+      console.warn('Failed to cleanup temp dir:', e.message);
     }
   });
 
@@ -106,6 +103,44 @@ describe('Secret Detection', () => {
      expect(() => {
         execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
      }).not.toThrow();
+
+     // 40 chars
+     const longKey = 'GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+     fs.writeFileSync(tmpFilePath, longKey);
+     expect(() => {
+        execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
+     }).not.toThrow();
+  });
+
+  test('check-secrets.sh should fail with commented out key', () => {
+    // Even if commented, we want to catch it to be safe
+    const commentedKey = '# GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+    fs.writeFileSync(tmpFilePath, commentedKey);
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
+
+    try {
+      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
+      throw new Error('Should have failed');
+    } catch (e) {
+      expect(e.status).toBe(1);
+    }
+  });
+
+  test('check-secrets.sh should fail with multiple keys', () => {
+    const content = `
+      GEMINI_API_KEY=PLACEHOLDER
+      # Another one
+      GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    `;
+    fs.writeFileSync(tmpFilePath, content);
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
+
+    try {
+      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
+      throw new Error('Should have failed');
+    } catch (e) {
+      expect(e.status).toBe(1);
+    }
   });
 
   test('check-secrets.sh should warn if file is missing', () => {
