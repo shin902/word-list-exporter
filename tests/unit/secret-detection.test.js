@@ -34,12 +34,13 @@ describe('Secret Detection', () => {
 
     // We need to run inside a git repo for the script to find GIT_ROOT
     // Initialize a dummy git repo in the temp dir
-    execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
     const output = execSync(`${scriptPath} ${tmpFilePath}`, {
         cwd: tmpDir,
         encoding: 'utf8',
-        stdio: 'pipe'
+        stdio: 'pipe',
+        timeout: 5000
     });
     expect(output).toContain('✅ Secret check passed');
   });
@@ -47,30 +48,30 @@ describe('Secret Detection', () => {
   test('check-secrets.sh should fail with real API key pattern', () => {
     const fakeKey = 'GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
     fs.writeFileSync(tmpFilePath, fakeKey);
-    execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
     expect(() => {
-      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe' });
+      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
     }).toThrow();
   });
 
   test('check-secrets.sh should fail with real API key pattern (quoted)', () => {
     const fakeKey = 'GEMINI_API_KEY="AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"';
     fs.writeFileSync(tmpFilePath, fakeKey);
-    execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
     expect(() => {
-      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe' });
+      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
     }).toThrow();
   });
 
   test('check-secrets.sh should fail with real API key pattern (with spaces)', () => {
     const fakeKey = 'GEMINI_API_KEY = AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
     fs.writeFileSync(tmpFilePath, fakeKey);
-    execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
     expect(() => {
-      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe' });
+      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
     }).toThrow();
   });
 
@@ -78,34 +79,35 @@ describe('Secret Detection', () => {
      if (fs.existsSync(tmpFilePath)) {
         fs.unlinkSync(tmpFilePath);
      }
-     execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+     execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
      const output = execSync(`${scriptPath} ${tmpFilePath}`, {
         cwd: tmpDir,
         encoding: 'utf8',
-        stdio: 'pipe'
+        stdio: 'pipe',
+        timeout: 5000
     });
     expect(output).toContain('Warning: Target file not found');
   });
 
   test('check-secrets.sh should fail if .env is staged', () => {
     // Initialize git repo
-    execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
-    execSync('git config user.email "test@example.com"', { cwd: tmpDir, stdio: 'ignore' });
-    execSync('git config user.name "Test User"', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
+    execSync('git config user.email "test@example.com"', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
+    execSync('git config user.name "Test User"', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
     // Create .env file
     const envPath = path.join(tmpDir, '.env');
     fs.writeFileSync(envPath, 'SECRET=123');
 
     // Stage .env
-    execSync('git add .env', { cwd: tmpDir, stdio: 'ignore' });
+    execSync('git add .env', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
     // Also create valid .env.example so that part passes
     fs.writeFileSync(tmpFilePath, 'GEMINI_API_KEY=PLACEHOLDER\n');
 
     try {
-        execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe' });
+        execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
         // Should throw
         throw new Error('Script should have failed due to staged .env');
     } catch (e) {

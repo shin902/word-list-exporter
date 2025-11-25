@@ -20,11 +20,11 @@ fi
 # Matches Gemini API keys which typically start with 'AIza' and are approx 39 chars long.
 # Regex explanation:
 # GEMINI_API_KEY  : Match literal key name
-# \s*=\s*         : Match equals sign with optional surrounding whitespace
+# [[:space:]]*=[[:space:]]* : Match equals sign with optional surrounding whitespace (POSIX compliant)
 # ["']?           : Match optional opening quote (double or single)
 # AIza            : Match Gemini key prefix
 # [a-zA-Z0-9_-]{30,}: Match remaining characters (at least 30)
-if grep -Eq "GEMINI_API_KEY\s*=\s*[\"']?AIza[a-zA-Z0-9_-]{30,}" "$TARGET_FILE"; then
+if grep -Eq "GEMINI_API_KEY[[:space:]]*=[[:space:]]*[\"']?AIza[a-zA-Z0-9_-]{30,}" "$TARGET_FILE"; then
     echo "❌ Error: $TARGET_FILE contains what looks like a real API key!"
     echo ""
     echo "   Current value matches a real Gemini API key pattern."
