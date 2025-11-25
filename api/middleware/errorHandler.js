@@ -65,8 +65,8 @@ function getGenericMessageForStatus(status) {
 
 /**
  * Express error handler middleware with secure error handling
- * - All environments: Returns generic messages to prevent information disclosure
- * - Detailed errors are logged server-side only with error ID for correlation
+ * - All environments: Returns sanitized, generic messages to prevent information disclosure
+ * - Detailed errors are logged server-side only with errorId for correlation
  * @param {Error} err - Error object
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
