@@ -3,21 +3,34 @@ const path = require('path');
 
 describe('CORS Configuration', () => {
     let originalEnv;
+    let consoleLogSpy;
+    let consoleWarnSpy;
+    let consoleErrorSpy;
 
     beforeEach(() => {
         jest.resetModules();
         originalEnv = { ...process.env };
+        
+        // Mock dotenv to prevent it from loading .env file during tests
+        jest.mock('dotenv', () => ({
+            config: jest.fn()
+        }));
+        
         // Ensure we don't have lingering env vars affecting tests
         delete process.env.FRONTEND_URL;
         delete process.env.NODE_ENV;
-        // Mock console.warn to avoid clutter and assert on it
-        jest.spyOn(console, 'warn').mockImplementation(() => {});
-        jest.spyOn(console, 'error').mockImplementation(() => {}); // Silence error logs during tests
+        delete process.env.KV_URL;
+        delete process.env.REDIS_URL;
+        // Mock console methods BEFORE requiring the module to capture all logs
+        consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {}); // Silence error logs during tests
     });
 
     afterEach(() => {
         process.env = originalEnv;
         jest.restoreAllMocks();
+        jest.unmock('dotenv');
     });
 
     test('should use FRONTEND_URL when set', async () => {
@@ -49,42 +62,49 @@ describe('CORS Configuration', () => {
     test('should log info message in development when using default CORS', async () => {
         process.env.NODE_ENV = 'development';
         process.env.GEMINI_API_KEY = 'test-key';
-        const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
         require('../../api/index');
 
-        expect(logSpy).toHaveBeenCalledWith(
-            expect.stringContaining('INFO: Using default CORS origin')
+        // Filter out dotenv logs and check for our specific log message
+        const logCalls = consoleLogSpy.mock.calls.map(call => call[0]);
+        const hasInfoMessage = logCalls.some(msg => 
+            typeof msg === 'string' && msg.includes('INFO: Using default CORS origin')
         );
+        expect(hasInfoMessage).toBe(true);
     });
 
     test('should not log info message when FRONTEND_URL is set in development', async () => {
         process.env.NODE_ENV = 'development';
         process.env.GEMINI_API_KEY = 'test-key';
         process.env.FRONTEND_URL = 'http://localhost:8080';
-        const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
         require('../../api/index');
 
-        expect(logSpy).not.toHaveBeenCalledWith(
-            expect.stringContaining('INFO: Using default CORS origin')
+        const logCalls = consoleLogSpy.mock.calls.map(call => call[0]);
+        const hasInfoMessage = logCalls.some(msg => 
+            typeof msg === 'string' && msg.includes('INFO: Using default CORS origin')
         );
+        expect(hasInfoMessage).toBe(false);
     });
 
-    test('should block but NOT warn about FRONTEND_URL when not set in test environment', async () => {
+    test('should block requests from unknown origins when FRONTEND_URL not set in test environment', async () => {
         process.env.NODE_ENV = 'test';
         process.env.GEMINI_API_KEY = 'test-key';
 
         const app = require('../../api/index');
 
         // Should NOT log a warning about FRONTEND_URL in test env
-        // Note: ocr.js might log a warning about Redis, so we only check for FRONTEND_URL warning
-        expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('WARNING: FRONTEND_URL is not set'));
+        const warnCalls = consoleWarnSpy.mock.calls.map(call => call[0]);
+        const hasFrontendUrlWarning = warnCalls.some(msg => 
+            typeof msg === 'string' && msg.includes('WARNING: FRONTEND_URL is not set')
+        );
+        expect(hasFrontendUrlWarning).toBe(false);
 
         const res = await request(app)
             .get('/api/health')
             .set('Origin', 'http://malicious.com');
 
+        // In test environment without FRONTEND_URL, allowedOrigin is false, so CORS blocks all origins
         expect(res.headers['access-control-allow-origin']).toBeUndefined();
     });
 
@@ -95,7 +115,11 @@ describe('CORS Configuration', () => {
         const app = require('../../api/index');
 
         // Should log a warning
-        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('WARNING: FRONTEND_URL is not set'));
+        const warnCalls = consoleWarnSpy.mock.calls.map(call => call[0]);
+        const hasFrontendUrlWarning = warnCalls.some(msg => 
+            typeof msg === 'string' && msg.includes('WARNING: FRONTEND_URL is not set')
+        );
+        expect(hasFrontendUrlWarning).toBe(true);
 
         const res = await request(app)
             .get('/api/health')
@@ -109,6 +133,9 @@ describe('CORS Configuration', () => {
         process.env.GEMINI_API_KEY = 'test-key';
         process.env.KV_URL = 'redis://localhost:6379'; // Redis is required in production now
 
+        // Reset modules to ensure config.js is re-evaluated with new env vars
+        jest.resetModules();
+        
         // We need to catch the error thrown during module require
         expect(() => {
             require('../../api/index');
@@ -122,6 +149,9 @@ describe('CORS Configuration', () => {
         delete process.env.KV_URL;
         delete process.env.REDIS_URL;
 
+        // Reset modules to ensure config.js is re-evaluated with new env vars
+        jest.resetModules();
+        
         // We need to catch the error thrown during module require
         expect(() => {
             require('../../api/index');
