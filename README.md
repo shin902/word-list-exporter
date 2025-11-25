@@ -53,7 +53,7 @@
    ```bash
    npm install
    ```
-   *注意: `npm install` 実行時に Gitフック（husky）が自動的にセットアップされます。*
+   > **注意**: `npm install` 実行時に Gitフック（husky）が自動的にセットアップされます。
 
 2. 環境変数の設定
    `.env.example` をコピーして `.env` を作成し、必要な環境変数を設定してください。

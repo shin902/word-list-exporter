@@ -46,13 +46,16 @@ describe('Secret Detection', () => {
   });
 
   test('check-secrets.sh should fail with real API key pattern', () => {
-    const fakeKey = 'GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+    const fakeKey = 'GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; // 39 chars
     fs.writeFileSync(tmpFilePath, fakeKey);
     execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
-    expect(() => {
+    try {
       execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
-    }).toThrow();
+      throw new Error('Should have failed');
+    } catch (e) {
+      expect(e.status).toBe(1);
+    }
   });
 
   test('check-secrets.sh should fail with real API key pattern (quoted)', () => {
@@ -60,9 +63,25 @@ describe('Secret Detection', () => {
     fs.writeFileSync(tmpFilePath, fakeKey);
     execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
-    expect(() => {
+    try {
       execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
-    }).toThrow();
+      throw new Error('Should have failed');
+    } catch (e) {
+      expect(e.status).toBe(1);
+    }
+  });
+
+  test('check-secrets.sh should fail with real API key pattern (single quoted)', () => {
+    const fakeKey = "GEMINI_API_KEY='AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'";
+    fs.writeFileSync(tmpFilePath, fakeKey);
+    execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
+
+    try {
+      execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
+      throw new Error('Should have failed');
+    } catch (e) {
+      expect(e.status).toBe(1);
+    }
   });
 
   test('check-secrets.sh should fail with real API key pattern (with spaces)', () => {
@@ -70,9 +89,23 @@ describe('Secret Detection', () => {
     fs.writeFileSync(tmpFilePath, fakeKey);
     execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
 
-    expect(() => {
+    try {
       execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
-    }).toThrow();
+      throw new Error('Should have failed');
+    } catch (e) {
+      expect(e.status).toBe(1);
+    }
+  });
+
+  test('check-secrets.sh should NOT fail with incorrect length keys', () => {
+     // 38 chars
+     const shortKey = 'GEMINI_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+     fs.writeFileSync(tmpFilePath, shortKey);
+     execSync('git init', { cwd: tmpDir, stdio: 'ignore', timeout: 5000 });
+
+     expect(() => {
+        execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
+     }).not.toThrow();
   });
 
   test('check-secrets.sh should warn if file is missing', () => {
@@ -108,16 +141,11 @@ describe('Secret Detection', () => {
 
     try {
         execSync(`${scriptPath} ${tmpFilePath}`, { cwd: tmpDir, stdio: 'pipe', timeout: 5000 });
-        // Should throw
         throw new Error('Script should have failed due to staged .env');
     } catch (e) {
-        // execSync throws on non-zero exit code
-        // We verify the output contains the specific error message
+        expect(e.status).toBe(1);
         const output = e.stdout ? e.stdout.toString() : '';
         const errorOutput = e.stderr ? e.stderr.toString() : '';
-        // Note: The script writes to stdout/stderr. execSync merges them if we don't handle stdio carefully,
-        // but 'pipe' allows us to inspect them in the error object (e.stdout/e.stderr).
-        // Our script echoes Error to stdout (fd 1).
         expect(output + errorOutput).toContain('Attempting to commit .env file');
     }
   });
