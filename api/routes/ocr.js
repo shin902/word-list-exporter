@@ -6,6 +6,17 @@ const { performOCR } = require('../utils/gemini');
 
 const router = express.Router();
 
+// 不正リクエスト検出用カウンター（DoS攻撃の検出）
+const failedValidationCounter = new Map();
+const FAILED_VALIDATION_THRESHOLD = 10; // 10回の失敗でアラート
+const COUNTER_RESET_INTERVAL = 15 * 60 * 1000; // 15分でリセット
+
+// 定期的にカウンターをリセット（テスト環境でプロセスが終了できるようにunref()を使用）
+const counterResetTimer = setInterval(() => {
+    failedValidationCounter.clear();
+}, COUNTER_RESET_INTERVAL);
+counterResetTimer.unref();
+
 // Redisクライアントの初期化（環境変数が設定されている場合）
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
 let store;
@@ -24,65 +35,152 @@ if (redisUrl) {
 }
 
 // レート制限の設定
-// Redisが設定されている場合は外部ストアを使用し、標準的な制限（100リクエスト/時間）を適用
-// Redisが設定されていない場合（特にProduction環境）、Serverless環境でのバイパスを防ぐため
-// 極端に厳しい制限（1リクエスト/時間/インスタンス）を適用するか、管理者への警告とする。
-const limitMax = store ? 100 : (process.env.NODE_ENV === 'production' ? 1 : 100);
-const limitMessage = store
+// Redisが設定されている場合は外部ストアを使用し、標準的な制限を適用
+// OCRエンドポイントはより厳格な制限（20リクエスト/時間）を適用
+const strictLimitMax = store ? 20 : (process.env.NODE_ENV === 'production' ? 1 : 20);
+const generalLimitMax = store ? 100 : (process.env.NODE_ENV === 'production' ? 1 : 100);
+
+const strictLimitMessage = store
     ? 'レート制限に達しました。1時間後に再試行してください。'
     : 'Security Warning: Redis is not configured. Rate limit exceeded for this instance.';
 
-const limiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: limitMax,
+// OCRエンドポイント用の厳格なレート制限
+const strictLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1時間
+    max: strictLimitMax, // OCRエンドポイントはより厳しく制限
     standardHeaders: true,
     legacyHeaders: false,
     store: store,
-    message: { error: limitMessage }
+    message: { error: strictLimitMessage },
+    skipSuccessfulRequests: false, // すべてのリクエストをカウント
+    // デフォルトのキー生成器を使用（IPv6対応済み）
+    // Vercel等のプロキシ環境ではX-Forwarded-Forが自動的に使用される
+    validate: { xForwardedForHeader: false } // プロキシ環境での警告を抑制
 });
 
-router.post('/', limiter, async (req, res, next) => {
+// 一般的なレート制限（他のエンドポイント用）
+const limiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: generalLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: store,
+    message: { error: strictLimitMessage }
+});
+
+/**
+ * サンプリングベースのBase64バリデーション（ReDoS回避）
+ * 大きなデータに対して効率的に検証を行う
+ * @param {string} str - 検証するBase64文字列
+ * @returns {boolean} - 有効な場合true
+ */
+function isValidBase64Sample(str) {
+    if (!str || typeof str !== 'string' || str.length === 0) {
+        return false;
+    }
+
+    // サンプリングベースの検証（ReDoS回避）
+    // 先頭、中間、末尾の各100文字をサンプリングして検証
+    const sampleSize = 100;
+    const samples = [];
+    
+    // 先頭部分
+    samples.push(str.substring(0, Math.min(sampleSize, str.length)));
+    
+    // 中間部分（文字列が十分長い場合）
+    if (str.length > sampleSize * 2) {
+        const midStart = Math.floor(str.length / 2) - Math.floor(sampleSize / 2);
+        samples.push(str.substring(midStart, midStart + sampleSize));
+    }
+    
+    // 末尾部分（文字列が十分長い場合）
+    if (str.length > sampleSize) {
+        samples.push(str.substring(str.length - sampleSize));
+    }
+
+    const base64Regex = /^[A-Za-z0-9+/=]*$/;
+    return samples.every(sample => base64Regex.test(sample));
+}
+
+/**
+ * 不正リクエストをカウントし、閾値を超えた場合にログ出力
+ * @param {string} ip - リクエスト元のIPアドレス
+ */
+function trackFailedValidation(ip) {
+    const count = (failedValidationCounter.get(ip) || 0) + 1;
+    failedValidationCounter.set(ip, count);
+    
+    if (count === FAILED_VALIDATION_THRESHOLD) {
+        console.warn(`[SECURITY] Possible DoS attack detected from IP: ${ip}. Failed validations: ${count}`);
+    }
+}
+
+router.post('/', strictLimiter, async (req, res, next) => {
+    // リクエスト元IPを取得（ログ用）
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                     req.headers['x-real-ip'] || 
+                     req.ip || 
+                     'unknown';
+    
     try {
         const { image } = req.body;
 
         // バリデーション
         if (!image) {
+            trackFailedValidation(clientIp);
             return res.status(400).json({ error: '画像データが必要です' });
         }
 
         if (typeof image !== 'string' || !image.startsWith('data:image/')) {
+            trackFailedValidation(clientIp);
             return res.status(400).json({ error: '無効な画像形式です' });
         }
 
         // Base64データの抽出
         const base64Data = image.split(',')[1];
         if (!base64Data) {
+            trackFailedValidation(clientIp);
             return res.status(400).json({ error: '画像データの解析に失敗しました' });
         }
 
         // Base64データサイズの制限（1MB - クライアント側で圧縮済みの画像を想定）
         const MAX_BASE64_SIZE = 1 * 1024 * 1024;
         if (base64Data.length > MAX_BASE64_SIZE) {
+            trackFailedValidation(clientIp);
             return res.status(413).json({ error: '画像データが大きすぎます' });
         }
 
         // Base64形式の検証 (RFC 4648に従い、ホワイトスペースを除去してから検証)
-        // 正規表現による検証は大きなデータに対してDoSの可能性があるため、
-        // 簡易的な文字チェックのみ行うか、デコード時のエラーハンドリングに任せる
         const cleanedBase64Data = base64Data.replace(/\s/g, '');
-
-        // Base64文字のみで構成されているか検証
-        // ReDoSを避けるため、複雑なキャプチャやバックトラックを含まない単純な文字クラスのみを使用
-        // Note: 文字種のみをチェックしており、パディングや長さの整合性は検証していません。
-        // これはNode.jsのBuffer.fromが柔軟に対応するためと、高速化のためです。
-        const base64Regex = /^[A-Za-z0-9+/=]*$/;
-        if (!base64Regex.test(cleanedBase64Data)) {
-            return res.status(400).json({ error: '無効なBase64形式です' });
-        }
 
         // ホワイトスペース除去後のデータが空でないか確認
         if (cleanedBase64Data.length === 0) {
+            trackFailedValidation(clientIp);
             return res.status(400).json({ error: '画像データの解析に失敗しました' });
+        }
+
+        // サンプリングベースのBase64バリデーション（ReDoS回避）
+        // 大きなデータに対して効率的に検証を行う
+        if (!isValidBase64Sample(cleanedBase64Data)) {
+            trackFailedValidation(clientIp);
+            return res.status(400).json({ error: '無効なBase64形式です' });
+        }
+
+        // 追加検証: パディングの整合性チェック
+        const paddingMatch = cleanedBase64Data.match(/=+$/);
+        if (paddingMatch) {
+            const paddingLength = paddingMatch[0].length;
+            // パディングは最大2文字まで
+            if (paddingLength > 2) {
+                trackFailedValidation(clientIp);
+                return res.status(400).json({ error: '無効なBase64形式です' });
+            }
+            // パディングを除いた長さが4の倍数になるか確認
+            const dataWithoutPadding = cleanedBase64Data.length - paddingLength;
+            if ((dataWithoutPadding + paddingLength) % 4 !== 0) {
+                trackFailedValidation(clientIp);
+                return res.status(400).json({ error: '無効なBase64形式です' });
+            }
         }
 
         // OCR実行 (クリーンアップされたBase64データを使用)
