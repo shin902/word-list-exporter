@@ -9,8 +9,26 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// セキュリティ
-app.use(helmet());
+// セキュリティ - 情報漏洩を防ぐため厳格な設定
+app.use(helmet({
+    contentSecurityPolicy: true,
+    crossOriginEmbedderPolicy: true,
+    crossOriginOpenerPolicy: true,
+    crossOriginResourcePolicy: true,
+    dnsPrefetchControl: true,
+    frameguard: true,
+    hidePoweredBy: true, // X-Powered-By ヘッダーを削除
+    hsts: true,
+    ieNoOpen: true,
+    noSniff: true,
+    originAgentCluster: true,
+    permittedCrossDomainPolicies: true,
+    referrerPolicy: true,
+    xssFilter: true
+}));
+
+// 追加でX-Powered-Byを確実に削除
+app.disable('x-powered-by');
 
 // 本番環境では config.js で FRONTEND_URL が必須検証済み
 const allowedOrigin = process.env.FRONTEND_URL ||

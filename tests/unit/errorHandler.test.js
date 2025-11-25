@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 const errorHandler = require('../../api/middleware/errorHandler');
 
 describe('Error Handler Middleware', () => {
@@ -254,7 +257,16 @@ describe('Error Handler Middleware', () => {
             const err = new Error('Test error');
             errorHandler(err, req, res, next);
 
-            expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Error ID'), err);
+            // Now logs structured object with error details including timestamp
+            expect(console.error).toHaveBeenCalledWith(
+                expect.stringContaining('Error ID'),
+                expect.objectContaining({
+                    message: 'Test error',
+                    name: 'Error',
+                    stack: expect.any(String),
+                    timestamp: expect.any(String)
+                })
+            );
         });
 
         it('should handle statusCode property (alternative to status)', () => {
