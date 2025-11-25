@@ -29,6 +29,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "forceExit": true,
     "testMatch": [
       "**/tests/**/*.test.js",
       "**/api/__tests__/**/*.test.js"

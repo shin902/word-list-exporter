@@ -143,21 +143,31 @@ function trackFailedValidation(ip) {
 }
 
 /**
+ * clientIPのサニタイズ（ログインジェクション対策）
+ * @param {string} ip - サニタイズするIPアドレス
+ * @returns {string} - サニタイズされたIPアドレス
+ */
+function sanitizeClientIp(ip) {
+    if (!ip || typeof ip !== 'string') return 'unknown';
+    // 改行文字とキャリッジリターンを除去
+    return ip.replace(/[\r\n]/g, '').substring(0, 45); // IPv6最大長 + 余裕
+}
+
+/**
  * バリデーションエラーを送信するヘルパー関数
  * errorIdを含めることで、クライアントエラーとサーバーログの相関を可能にする
+ * trackFailedValidationを統合してログ重複を防止
  * @param {object} res - Expressレスポンスオブジェクト
  * @param {number} status - HTTPステータスコード
  * @param {string} message - エラーメッセージ
  * @param {string} clientIp - クライアントIPアドレス
- * @returns {object} - レスポンスオブジェクト
+ * @returns {void}
  */
 function sendValidationError(res, status, message, clientIp) {
     const errorId = crypto.randomUUID();
-    console.warn(`Validation error ${errorId} [${new Date().toISOString()}]:`, {
-        status,
-        message,
-        clientIp
-    });
+    const sanitizedIp = sanitizeClientIp(clientIp);
+    // trackFailedValidation を統合（ログ重複を防止）
+    trackFailedValidation(sanitizedIp);
     return res.status(status).json({
         error: message,
         errorId: errorId
@@ -176,26 +186,22 @@ router.post('/', strictLimiter, async (req, res, next) => {
 
         // バリデーション
         if (!image) {
-            trackFailedValidation(clientIp);
             return sendValidationError(res, 400, '画像データが必要です', clientIp);
         }
 
         if (typeof image !== 'string' || !image.startsWith('data:image/')) {
-            trackFailedValidation(clientIp);
             return sendValidationError(res, 400, '無効な画像形式です', clientIp);
         }
 
         // Base64データの抽出
         const base64Data = image.split(',')[1];
         if (!base64Data) {
-            trackFailedValidation(clientIp);
             return sendValidationError(res, 400, '画像データの解析に失敗しました', clientIp);
         }
 
         // Base64データサイズの制限（1MB - クライアント側で圧縮済みの画像を想定）
         const MAX_BASE64_SIZE = 1 * 1024 * 1024;
         if (base64Data.length > MAX_BASE64_SIZE) {
-            trackFailedValidation(clientIp);
             return sendValidationError(res, 413, '画像データが大きすぎます', clientIp);
         }
 
@@ -204,14 +210,12 @@ router.post('/', strictLimiter, async (req, res, next) => {
 
         // ホワイトスペース除去後のデータが空でないか確認
         if (cleanedBase64Data.length === 0) {
-            trackFailedValidation(clientIp);
             return sendValidationError(res, 400, '画像データの解析に失敗しました', clientIp);
         }
 
         // サンプリングベースのBase64バリデーション（ReDoS回避）
         // 大きなデータに対して効率的に検証を行う
         if (!isValidBase64Sample(cleanedBase64Data)) {
-            trackFailedValidation(clientIp);
             return sendValidationError(res, 400, '無効なBase64形式です', clientIp);
         }
 
@@ -221,13 +225,11 @@ router.post('/', strictLimiter, async (req, res, next) => {
             const paddingLength = paddingMatch[0].length;
             // パディングは最大2文字まで
             if (paddingLength > 2) {
-                trackFailedValidation(clientIp);
                 return sendValidationError(res, 400, '無効なBase64形式です', clientIp);
             }
             // パディングを除いた長さが4の倍数になるか確認
             const dataWithoutPadding = cleanedBase64Data.length - paddingLength;
             if ((dataWithoutPadding + paddingLength) % 4 !== 0) {
-                trackFailedValidation(clientIp);
                 return sendValidationError(res, 400, '無効なBase64形式です', clientIp);
             }
         }
