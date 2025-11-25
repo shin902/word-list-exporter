@@ -1,4 +1,7 @@
 /**
+ * @jest-environment jsdom
+ */
+/**
  * Integration tests for OCR workflow
  * Tests the complete flow from image selection to card creation
  */

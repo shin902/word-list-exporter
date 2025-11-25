@@ -1,4 +1,7 @@
 /**
+ * @jest-environment jsdom
+ */
+/**
  * Integration tests for data migration
  * Tests the migration of legacy cards without IDs to the new ID-based system
  */
