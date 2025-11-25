@@ -28,7 +28,8 @@
     "supertest": "^7.1.4"
   },
   "jest": {
-    "testEnvironment": "jsdom",
+    "testEnvironment": "node",
+    "forceExit": true,
     "testMatch": [
       "**/tests/**/*.test.js",
       "**/api/__tests__/**/*.test.js"

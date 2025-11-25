@@ -1,4 +1,7 @@
 /**
+ * @jest-environment jsdom
+ */
+/**
  * Unit tests for validation functions
  * Run these tests using a test framework like Jest or Mocha
  */

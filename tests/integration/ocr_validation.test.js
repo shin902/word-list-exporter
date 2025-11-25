@@ -105,4 +105,12 @@ describe('OCR Validation Integration Tests', () => {
             expect(gemini.performOCR).toHaveBeenCalled();
         }, 10000); // Increase timeout for large payload
     });
+
+    afterAll(() => {
+        // Clean up timer to prevent "worker has failed to exit gracefully" warning
+        const { clearTimer } = require('../../api/routes/ocr');
+        if (typeof clearTimer === 'function') {
+            clearTimer();
+        }
+    });
 });

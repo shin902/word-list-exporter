@@ -16,6 +16,14 @@ describe('POST /api/ocr', () => {
         jest.clearAllMocks();
     });
 
+    afterAll(() => {
+        // Clean up timer to prevent "worker has failed to exit gracefully" warning
+        const { clearTimer } = require('../routes/ocr');
+        if (typeof clearTimer === 'function') {
+            clearTimer();
+        }
+    });
+
     it('should return error when no image provided', async () => {
         const response = await request(app)
             .post('/api/ocr')

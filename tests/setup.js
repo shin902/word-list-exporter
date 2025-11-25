@@ -103,3 +103,15 @@ global.performOCR = app.performOCR;
 global.shuffleCards = app.shuffleCards;
 global.secureRandom = app.secureRandom;
 global.secureRandomInt = app.secureRandomInt;
+
+// Cleanup OCR timer after all tests to prevent "worker has failed to exit gracefully" warning
+afterAll(() => {
+    try {
+        const { clearTimer } = require('../api/routes/ocr');
+        if (typeof clearTimer === 'function') {
+            clearTimer();
+        }
+    } catch (e) {
+        // Ignore if OCR module is not loaded
+    }
+});
