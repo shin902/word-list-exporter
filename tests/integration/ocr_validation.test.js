@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 const request = require('supertest');
 const app = require('../../api/index');
 const gemini = require('../../api/utils/gemini');

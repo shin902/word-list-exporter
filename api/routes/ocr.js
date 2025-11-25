@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
@@ -15,7 +16,10 @@ const COUNTER_RESET_INTERVAL = 15 * 60 * 1000; // 15分でリセット
 const counterResetTimer = setInterval(() => {
     failedValidationCounter.clear();
 }, COUNTER_RESET_INTERVAL);
-counterResetTimer.unref();
+// Node.js環境でのみunref()を呼び出す（jsdom環境では利用不可）
+if (typeof counterResetTimer.unref === 'function') {
+    counterResetTimer.unref();
+}
 
 // Redisクライアントの初期化（環境変数が設定されている場合）
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
@@ -115,6 +119,22 @@ function trackFailedValidation(ip) {
     }
 }
 
+/**
+ * バリデーションエラーを送信するヘルパー関数
+ * 一貫したエラーレスポンス形式を保証し、errorIdを含める
+ * @param {Object} res - Express response object
+ * @param {number} status - HTTP status code
+ * @param {string} message - Error message for client
+ * @returns {Object} Express response
+ */
+function sendValidationError(res, status, message) {
+    const errorId = crypto.randomUUID();
+    return res.status(status).json({
+        error: message,
+        errorId: errorId
+    });
+}
+
 router.post('/', strictLimiter, async (req, res, next) => {
     // リクエスト元IPを取得（ログ用）
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
@@ -128,26 +148,26 @@ router.post('/', strictLimiter, async (req, res, next) => {
         // バリデーション
         if (!image) {
             trackFailedValidation(clientIp);
-            return res.status(400).json({ error: '画像データが必要です' });
+            return sendValidationError(res, 400, '画像データが必要です');
         }
 
         if (typeof image !== 'string' || !image.startsWith('data:image/')) {
             trackFailedValidation(clientIp);
-            return res.status(400).json({ error: '無効な画像形式です' });
+            return sendValidationError(res, 400, '無効な画像形式です');
         }
 
         // Base64データの抽出
         const base64Data = image.split(',')[1];
         if (!base64Data) {
             trackFailedValidation(clientIp);
-            return res.status(400).json({ error: '画像データの解析に失敗しました' });
+            return sendValidationError(res, 400, '画像データの解析に失敗しました');
         }
 
         // Base64データサイズの制限（1MB - クライアント側で圧縮済みの画像を想定）
         const MAX_BASE64_SIZE = 1 * 1024 * 1024;
         if (base64Data.length > MAX_BASE64_SIZE) {
             trackFailedValidation(clientIp);
-            return res.status(413).json({ error: '画像データが大きすぎます' });
+            return sendValidationError(res, 413, '画像データが大きすぎます');
         }
 
         // Base64形式の検証 (RFC 4648に従い、ホワイトスペースを除去してから検証)
@@ -156,14 +176,14 @@ router.post('/', strictLimiter, async (req, res, next) => {
         // ホワイトスペース除去後のデータが空でないか確認
         if (cleanedBase64Data.length === 0) {
             trackFailedValidation(clientIp);
-            return res.status(400).json({ error: '画像データの解析に失敗しました' });
+            return sendValidationError(res, 400, '画像データの解析に失敗しました');
         }
 
         // サンプリングベースのBase64バリデーション（ReDoS回避）
         // 大きなデータに対して効率的に検証を行う
         if (!isValidBase64Sample(cleanedBase64Data)) {
             trackFailedValidation(clientIp);
-            return res.status(400).json({ error: '無効なBase64形式です' });
+            return sendValidationError(res, 400, '無効なBase64形式です');
         }
 
         // 追加検証: パディングの整合性チェック
@@ -173,13 +193,13 @@ router.post('/', strictLimiter, async (req, res, next) => {
             // パディングは最大2文字まで
             if (paddingLength > 2) {
                 trackFailedValidation(clientIp);
-                return res.status(400).json({ error: '無効なBase64形式です' });
+                return sendValidationError(res, 400, '無効なBase64形式です');
             }
             // パディングを除いた長さが4の倍数になるか確認
             const dataWithoutPadding = cleanedBase64Data.length - paddingLength;
             if ((dataWithoutPadding + paddingLength) % 4 !== 0) {
                 trackFailedValidation(clientIp);
-                return res.status(400).json({ error: '無効なBase64形式です' });
+                return sendValidationError(res, 400, '無効なBase64形式です');
             }
         }
 
