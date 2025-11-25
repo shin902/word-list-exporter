@@ -24,10 +24,9 @@ function initializeTimer() {
     counterResetTimer = setInterval(() => {
         failedValidationCounter.clear();
     }, COUNTER_RESET_INTERVAL);
-    try {
+    // Node.js環境でのみunref()を呼び出す（jsdom環境では利用不可）
+    if (typeof counterResetTimer.unref === 'function') {
         counterResetTimer.unref();
-    } catch (e) {
-        // テスト環境（jsdom等）では無視
     }
 }
 

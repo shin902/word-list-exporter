@@ -75,6 +75,7 @@ function getGenericMessageForStatus(status) {
 function errorHandler(err, req, res, next) {
     // Generate unique error ID for debugging in all environments
     const errorId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
 
     // Helper function to send response with validation
     const sendResponse = (status, message) => {
@@ -90,23 +91,23 @@ function errorHandler(err, req, res, next) {
         return res.status(status).json(response);
     };
 
-    // Generate timestamp for logging
-    const timestamp = new Date().toISOString();
-
     // Handle null/undefined errors early
     if (!err) {
         console.error(`Error ID ${errorId} [${timestamp}]:`, {
-            message: 'Unknown error (null/undefined)'
+            message: 'Unknown error (null/undefined)',
+            timestamp
         });
         return sendResponse(500, '不明なエラーが発生しました。');
     }
 
-    // Log detailed errors with errorId and timestamp for correlation (server-side only)
+    // Log detailed errors server-side for all environments
+    // This includes stack trace for debugging but never exposes it to client
     console.error(`Error ID ${errorId} [${timestamp}]:`, {
         message: err?.message || 'Unknown error',
         stack: err?.stack,
         name: err?.name,
-        status: err?.status || err?.statusCode
+        status: err?.status || err?.statusCode,
+        timestamp
     });
 
     const rawMessage = err.message || 'Unknown error';

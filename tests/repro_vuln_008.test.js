@@ -1,4 +1,6 @@
-
+/**
+ * @jest-environment node
+ */
 const request = require('supertest');
 const express = require('express');
 

@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 const request = require('supertest');
 const path = require('path');
 

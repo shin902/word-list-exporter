@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 const request = require('supertest');
 const express = require('express');
 const errorHandler = require('../../api/middleware/errorHandler');
