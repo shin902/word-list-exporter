@@ -10,7 +10,8 @@ if [ ! -f ".env.example" ]; then
 fi
 
 # Check for real API keys
-if grep -E "GEMINI_API_KEY=(AIza[a-zA-Z0-9_-]{35}|AI[a-zA-Z0-9_-]{30,})" .env.example; then
+# Matches Gemini API keys which typically start with 'AIza' and are approx 39 chars long.
+if grep -E "GEMINI_API_KEY=AIza[a-zA-Z0-9_-]{35}" .env.example; then
     echo "❌ Error: .env.example contains what looks like a real API key!"
     echo ""
     echo "   Current value matches a real Gemini API key pattern."
@@ -20,9 +21,6 @@ if grep -E "GEMINI_API_KEY=(AIza[a-zA-Z0-9_-]{35}|AI[a-zA-Z0-9_-]{30,})" .env.ex
 fi
 
 # Check that .env is not being committed
-# The '|| true' is to handle cases where there are no staged changes or other git errors gracefully,
-# though strictly we care about the output of grep.
-# If grep finds .env, it returns 0 (true), entering the if block.
 if git diff --cached --name-only | grep -q "^\.env$" 2>/dev/null; then
     echo "❌ Error: Attempting to commit .env file!"
     echo "   The .env file contains secrets and should never be committed."
