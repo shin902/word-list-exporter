@@ -90,9 +90,9 @@ describe('OCR Validation Integration Tests', () => {
         });
 
         it('should accept large valid Base64 payload (within limit)', async () => {
-            // 4MB Base64 string (approx 3MB raw data)
+            // 0.8MB Base64 string (within 1MB limit)
             // 'a' is valid base64 char
-            const largeBase64 = 'a'.repeat(4 * 1024 * 1024);
+            const largeBase64 = 'a'.repeat(0.8 * 1024 * 1024);
 
             const res = await request(app)
                 .post('/api/ocr')

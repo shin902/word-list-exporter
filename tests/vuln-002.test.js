@@ -14,9 +14,9 @@ describe('Vuln-002: Large Payload DoS', () => {
         return 'a'.repeat(sizeInBytes);
     };
 
-    // 3MB raw -> ~4MB base64 (Under 5MB limit)
-    it('should accept 3MB raw payload (under 5MB limit)', async () => {
-        const payload = generateLargeString(3 * 1024 * 1024);
+    // 0.5MB raw -> ~0.67MB base64 (Under 1MB limit)
+    it('should accept 0.5MB raw payload (under 1MB limit)', async () => {
+        const payload = generateLargeString(0.5 * 1024 * 1024);
         const base64Payload = Buffer.from(payload).toString('base64');
 
         const res = await request(app)
@@ -27,9 +27,9 @@ describe('Vuln-002: Large Payload DoS', () => {
         expect(res.status).toBe(200);
     });
 
-    // 6MB raw -> ~8MB base64 (Over 5MB limit)
-    it('should reject 6MB raw payload (over 5MB limit)', async () => {
-        const payload = generateLargeString(6 * 1024 * 1024);
+    // 1.5MB raw -> ~2MB base64 (Over 1MB limit)
+    it('should reject 1.5MB raw payload (over 1MB limit)', async () => {
+        const payload = generateLargeString(1.5 * 1024 * 1024);
         const base64Payload = Buffer.from(payload).toString('base64');
 
         const res = await request(app)
