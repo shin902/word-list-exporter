@@ -24,6 +24,7 @@ fi
 
 # Check for real API keys
 # Matches Gemini API keys which typically start with 'AIza' and are exactly 39 chars long.
+# Note: This check intentionally includes commented-out lines to prevent accidental leakage of valid keys in comments.
 # Regex explanation:
 # GEMINI_API_KEY  : Match literal key name
 # [[:space:]]*=[[:space:]]* : Match equals sign with optional surrounding whitespace (POSIX compliant)

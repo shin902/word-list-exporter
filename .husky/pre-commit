@@ -1,2 +1,4 @@
 #!/bin/sh
-./scripts/check-secrets.sh || exit 1
+# Get the root directory of the git repository
+GIT_ROOT=$(git rev-parse --show-toplevel)
+"$GIT_ROOT/scripts/check-secrets.sh" || exit 1
