@@ -36,9 +36,6 @@ describe('Secret Detection', () => {
         execSync('./scripts/check-secrets.sh', { stdio: 'pipe' });
       }).toThrow();
 
-    } catch (e) {
-       // If the test itself fails (e.g. writeFileSync fails), ensure we still restore
-       throw e;
     } finally {
       fs.writeFileSync(envExamplePath, backup);
     }

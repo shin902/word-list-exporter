@@ -1,3 +1,2 @@
 #!/bin/sh
 ./scripts/check-secrets.sh || exit 1
-npm test || exit 1

@@ -1,17 +1,20 @@
 #!/bin/bash
 set -euo pipefail
 
+# Determine the repository root to ensure the script runs correctly from any directory
+GIT_ROOT=$(git rev-parse --show-toplevel)
+
 echo "🔍 Checking for secrets in .env.example..."
 
 # Ensure .env.example exists
-if [ ! -f ".env.example" ]; then
-    echo "⚠️  Warning: .env.example not found"
+if [ ! -f "$GIT_ROOT/.env.example" ]; then
+    echo "⚠️  Warning: .env.example not found at $GIT_ROOT/.env.example"
     exit 0
 fi
 
 # Check for real API keys
 # Matches Gemini API keys which typically start with 'AIza' and are approx 39 chars long.
-if grep -E "GEMINI_API_KEY=AIza[a-zA-Z0-9_-]{35}" .env.example; then
+if grep -E "GEMINI_API_KEY=AIza[a-zA-Z0-9_-]{35}" "$GIT_ROOT/.env.example"; then
     echo "❌ Error: .env.example contains what looks like a real API key!"
     echo ""
     echo "   Current value matches a real Gemini API key pattern."
