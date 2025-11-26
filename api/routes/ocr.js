@@ -3,7 +3,9 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
-const { LRUCache } = require('lru-cache');
+const LRU = require('lru-cache');
+// Support both default-exported constructor (v6) and named export (v7+)
+const LRUCache = typeof LRU === 'function' ? LRU : LRU.LRUCache;
 const { performOCR } = require('../utils/gemini');
 const { getClientIp, sanitizeClientIp } = require('../utils/network');
 
