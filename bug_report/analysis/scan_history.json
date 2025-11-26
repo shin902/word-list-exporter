@@ -1,0 +1,46 @@
+{
+  "scan_info": {
+    "start_time": "2025-11-26T00:00:00+09:00",
+    "end_time": "2025-11-26T00:45:00+09:00",
+    "total_iterations": 3,
+    "total_files_scanned": 15,
+    "scanner_version": "Claude Opus 4.5"
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "timestamp": "2025-11-26T00:00:00+09:00",
+      "files_scanned": 12,
+      "vulnerabilities_found": 7,
+      "chains_found": 1,
+      "focus_areas": ["backend API", "frontend JS", "config files"]
+    },
+    {
+      "iteration": 2,
+      "timestamp": "2025-11-26T00:30:00+09:00",
+      "files_scanned": 5,
+      "vulnerabilities_found": 2,
+      "chains_found": 0,
+      "focus_areas": ["config files", "client-side storage"]
+    },
+    {
+      "iteration": 3,
+      "timestamp": "2025-11-26T00:45:00+09:00",
+      "files_scanned": 4,
+      "vulnerabilities_found": 0,
+      "chains_found": 0,
+      "focus_areas": ["CI/CD", "git hooks", "security scripts"]
+    }
+  ],
+  "summary": {
+    "total_vulnerabilities": 9,
+    "total_chains": 1,
+    "by_severity": {
+      "critical": 0,
+      "high": 0,
+      "medium": 4,
+      "low": 5
+    },
+    "exit_reason": "no_new_findings"
+  }
+}
