@@ -2,6 +2,7 @@
 
 const { GEMINI_API_KEY } = require('../config');
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const INVALID_RESPONSE_ERROR = 'Invalid response format from Gemini API';
 
 async function performOCR(base64Image) {
     if (!GEMINI_API_KEY) {
@@ -80,7 +81,7 @@ async function performOCR(base64Image) {
     const data = await response.json();
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        throw new Error('Invalid response format from Gemini API');
+        throw new Error(INVALID_RESPONSE_ERROR);
     }
 
     const text = data.candidates[0].content.parts?.[0]?.text;
@@ -89,18 +90,21 @@ async function performOCR(base64Image) {
         throw new Error('Invalid response format from Gemini API: missing text');
     }
 
-    // Parse and validate JSON response
+    // Parse and validate JSON response from Gemini API.
+    // Generic errors are thrown to prevent information disclosure (vuln-006).
+    let cards;
     try {
-        const cards = JSON.parse(text);
-        if (!Array.isArray(cards)) {
-            console.error('Gemini response is not an array:', text);
-            throw new Error('Invalid response format from Gemini API');
-        }
-        return cards; // Return array of {question, answer} objects directly
+        cards = JSON.parse(text);
     } catch (e) {
         console.error('Failed to parse Gemini response:', e.message, text);
-        throw new Error('Invalid response format from Gemini API');
+        throw new Error(INVALID_RESPONSE_ERROR);
     }
+
+    if (!Array.isArray(cards)) {
+        console.error('Gemini response is not an array:', text);
+        throw new Error(INVALID_RESPONSE_ERROR);
+    }
+    return cards;
 }
 
 module.exports = { performOCR };
