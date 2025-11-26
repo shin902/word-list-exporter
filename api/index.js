@@ -56,13 +56,13 @@ app.use(cors({
 app.use(express.json({ limit: '1.5mb' }));
 
 // body-parserによってスローされるエラーを専門に処理するミドルウェア。
-// これは他のミドルウェアやルートハンドラの前に配置する必要があるため、ここで定義されています。
+// express.json()の直後、かつルートハンドラの前に配置する必要があります。
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
         console.error(`Invalid JSON in request body from IP: ${req.ip}`, { error: err.message });
         return res.status(400).json({ error: 'リクエストのJSON形式が正しくありません。' });
     }
-    if (err.type === 'entity.too.large') {
+    if (err && err.type === 'entity.too.large') {
         console.error(`Request entity too large from IP: ${req.ip}`, { size: req.headers['content-length'] });
         return res.status(413).json({ error: 'リクエストのペイロードが大きすぎます。' });
     }

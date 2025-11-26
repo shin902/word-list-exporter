@@ -22,9 +22,17 @@ function getGenericMessageForStatus(status) {
 }
 
 /**
- * Express error handler middleware with secure error handling
- * - All environments: Returns sanitized, generic messages to prevent information disclosure
- * - Detailed errors are logged server-side only with errorId for correlation
+ * Express error handler middleware with secure error handling.
+ * - All environments: Returns generic messages to prevent information disclosure.
+ * - Detailed errors are logged server-side only with a unique errorId for correlation.
+ *
+ * @example
+ * // Final response format:
+ * {
+ *   "error": "サーバーエラーが発生しました。",
+ *   "errorId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+ * }
+ *
  * @param {Error} err - Error object
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
