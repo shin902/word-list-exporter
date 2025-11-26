@@ -20,6 +20,28 @@ describe('gemini.js - performOCR', () => {
         jest.restoreAllMocks();
     });
 
+    it('should successfully parse a valid OCR response', async () => {
+        const mockApiResponse = {
+            candidates: [{
+                content: {
+                    parts: [{
+                        text: JSON.stringify([{ question: 'Q1', answer: 'A1' }])
+                    }]
+                }
+            }]
+        };
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: jest.fn().mockResolvedValue(mockApiResponse),
+        });
+
+        const result = await performOCR('valid-base64-string');
+
+        expect(result).toEqual([{ question: 'Q1', answer: 'A1' }]);
+        expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+
     it('should throw a generic error and log detailed JSON error on failed API call', async () => {
         const mockErrorResponse = {
             error: {
@@ -37,14 +59,14 @@ describe('gemini.js - performOCR', () => {
             text: jest.fn().mockResolvedValue(JSON.stringify(mockErrorResponse))
         });
 
-        // Expect the function to throw a generic error
-        await expect(performOCR('some-base64-string')).rejects.toThrow('Gemini API error: 400 - API request failed');
+        // Expect the function to throw a generic error that includes the status code
+        const errorPromise = performOCR('some-base64-string');
+        await expect(errorPromise).rejects.toThrow('Gemini API error: 400 - API request failed');
+        await expect(errorPromise).rejects.toThrow(/400/);
+
 
         // Verify that the detailed error was logged
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-            'Gemini API error details (JSON):',
-            JSON.stringify(mockErrorResponse, null, 2)
-        );
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini API error details:', mockErrorResponse);
     });
 
     it('should throw a generic error and log detailed text error on failed API call', async () => {
@@ -58,8 +80,11 @@ describe('gemini.js - performOCR', () => {
             text: jest.fn().mockResolvedValue(errorText)
         });
 
-        // Expect the function to throw a generic error
-        await expect(performOCR('some-base64-string')).rejects.toThrow('Gemini API error: 500 - API request failed');
+        // Expect the function to throw a generic error that includes the status code
+        const errorPromise = performOCR('some-base64-string');
+        await expect(errorPromise).rejects.toThrow('Gemini API error: 500 - API request failed');
+        await expect(errorPromise).rejects.toThrow(/500/);
+
 
         // Verify that the detailed text error was logged
         expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini API error details (Text):', errorText);
@@ -74,8 +99,10 @@ describe('gemini.js - performOCR', () => {
             text: jest.fn().mockRejectedValue(new Error('Network error'))
         });
 
-        // Expect the function to throw a generic error
-        await expect(performOCR('some-base64-string')).rejects.toThrow('Gemini API error: 502 - API request failed');
+        // Expect the function to throw a generic error that includes the status code
+        const errorPromise = performOCR('some-base64-string');
+        await expect(errorPromise).rejects.toThrow('Gemini API error: 502 - API request failed');
+        await expect(errorPromise).rejects.toThrow(/502/);
 
         // Verify that a fallback message was logged
         expect(consoleErrorSpy).toHaveBeenCalledWith('Could not read Gemini API response body');

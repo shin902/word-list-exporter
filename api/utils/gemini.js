@@ -58,19 +58,22 @@ async function performOCR(base64Image) {
     });
 
     if (!response.ok) {
-        // Log the detailed error for server-side debugging
+        // Log the detailed error for server-side debugging, then throw a generic error.
         try {
-            const error = await response.json();
-            console.error('Gemini API error details (JSON):', JSON.stringify(error, null, 2));
-        } catch (e) {
+            const errorBody = await response.json();
+            console.error('Gemini API error details:', errorBody);
+        } catch (jsonError) {
             try {
                 const errorText = await response.text();
                 console.error('Gemini API error details (Text):', errorText);
-            } catch (e2) {
+            } catch (textError) {
                 console.error('Could not read Gemini API response body');
             }
         }
-        // Throw a generic error to the client to avoid leaking implementation details
+
+        // Throw a generic error. The status code is intentionally included
+        // as it is used by the downstream errorHandler to provide more specific,
+        // safe error messages to the client (e.g., for rate limiting).
         throw new Error(`Gemini API error: ${response.status} - API request failed`);
     }
 
