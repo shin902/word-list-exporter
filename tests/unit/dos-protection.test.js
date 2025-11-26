@@ -61,6 +61,21 @@ describe('DoS Protection via failedValidationCounter', () => {
         expect(failedValidationCounter.get('192.168.0.0')).toBe(2);
     });
 
+    it('should evict the least recently used entry', () => {
+        for (let i = 0; i < MAX_COUNTER_ENTRIES; i++) {
+            trackFailedValidation(`192.168.0.${i}`);
+        }
+        // Access the first IP to make it recently used
+        trackFailedValidation('192.168.0.0');
+
+        // Add a new IP, which should evict the second IP (192.168.0.1)
+        trackFailedValidation('192.168.1.1');
+
+        expect(failedValidationCounter.has('192.168.0.0')).toBe(true);
+        expect(failedValidationCounter.has('192.168.0.1')).toBe(false);
+        expect(failedValidationCounter.has('192.168.1.1')).toBe(true);
+    });
+
     it('should log warning when IP reaches threshold after eviction', () => {
         for (let i = 0; i < MAX_COUNTER_ENTRIES; i++) {
             trackFailedValidation(`192.168.0.${i}`);
@@ -85,5 +100,12 @@ describe('DoS Protection via failedValidationCounter', () => {
         expect(failedValidationCounter.size).toBe(MAX_COUNTER_ENTRIES);
         expect(failedValidationCounter.has('192.168.0.0')).toBe(true);
         expect(failedValidationCounter.has('10.0.0.1')).toBe(true);
+    });
+
+    it('should handle rapid addition of many entries beyond limit', () => {
+        for (let i = 0; i < MAX_COUNTER_ENTRIES + 100; i++) {
+            trackFailedValidation(`10.0.${Math.floor(i / 256)}.${i % 256}`);
+        }
+        expect(failedValidationCounter.size).toBe(MAX_COUNTER_ENTRIES);
     });
 });
