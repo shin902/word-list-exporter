@@ -88,4 +88,60 @@ describe('Error Handler Integration Tests', () => {
         expect(response2.body.errorId).toBeDefined();
         expect(response1.body.errorId).not.toBe(response2.body.errorId);
     });
+
+    it('should return 429 for rate limit errors', async () => {
+        app.get('/test', (req, res) => {
+            const err = new Error('Too many requests');
+            err.status = 429;
+            throw err;
+        });
+        app.use(errorHandler);
+
+        const response = await request(app).get('/test');
+
+        expect(response.status).toBe(429);
+        expect(response.body.error).toBe('リクエストが多すぎます。しばらくしてから再試行してください。');
+    });
+
+    it('should return 404 for not found errors', async () => {
+        app.get('/test', (req, res) => {
+            const err = new Error('Not found');
+            err.status = 404;
+            throw err;
+        });
+        app.use(errorHandler);
+
+        const response = await request(app).get('/test');
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('リソースが見つかりません。');
+    });
+
+    it('should return 502 for bad gateway errors', async () => {
+        app.get('/test', (req, res) => {
+            const err = new Error('Bad gateway');
+            err.status = 502;
+            throw err;
+        });
+        app.use(errorHandler);
+
+        const response = await request(app).get('/test');
+
+        expect(response.status).toBe(502);
+        expect(response.body.error).toBe('ゲートウェイエラーが発生しました。');
+    });
+
+    it('should return 503 for service unavailable errors', async () => {
+        app.get('/test', (req, res) => {
+            const err = new Error('Service unavailable');
+            err.status = 503;
+            throw err;
+        });
+        app.use(errorHandler);
+
+        const response = await request(app).get('/test');
+
+        expect(response.status).toBe(503);
+        expect(response.body.error).toBe('サービスが一時的に利用できません。');
+    });
 });
