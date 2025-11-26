@@ -31,6 +31,16 @@ describe('CORS Configuration', () => {
     });
 
     afterEach(() => {
+        // Clean up any Redis connections that may have been created
+        try {
+            const { cleanup } = require('../../api/routes/ocr');
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+        } catch (e) {
+            // Ignore if OCR module is not loaded
+        }
+        
         process.env = originalEnv;
         jest.restoreAllMocks();
         jest.unmock('dotenv');

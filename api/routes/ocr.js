@@ -57,11 +57,16 @@ function clearTimer() {
 /**
  * Redisクライアントを切断
  * テストのクリーンアップ用
- * quit()を使用して保留中の操作を完了させてから接続を閉じる
+ * disconnect()を使用して即座に接続を切断
  */
 function disconnectRedis() {
     if (redisClient) {
-        redisClient.quit();
+        try {
+            // disconnect() immediately closes the connection without waiting
+            redisClient.disconnect();
+        } catch (e) {
+            // Ignore errors during cleanup
+        }
         redisClient = null;
     }
 }
