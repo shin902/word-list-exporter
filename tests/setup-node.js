@@ -4,12 +4,12 @@
 
 require('./utils/crypto-polyfill');
 
-// Cleanup OCR timer after all tests to prevent "worker has failed to exit gracefully" warning
+// Cleanup OCR resources after all tests to prevent "worker has failed to exit gracefully" warning
 afterAll(() => {
     try {
-        const { clearTimer } = require('../api/routes/ocr');
-        if (typeof clearTimer === 'function') {
-            clearTimer();
+        const { cleanup } = require('../api/routes/ocr');
+        if (typeof cleanup === 'function') {
+            cleanup();
         }
     } catch (e) {
         // Ignore if OCR module is not loaded

@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
-const LRUCache = require('lru-cache');
+const { LRUCache } = require('lru-cache');
 const { performOCR } = require('../utils/gemini');
 const { getClientIp, sanitizeClientIp } = require('../utils/network');
 
@@ -52,21 +52,42 @@ function clearTimer() {
     }
 }
 
+/**
+ * Redisクライアントを切断
+ * テストのクリーンアップ用
+ */
+function disconnectRedis() {
+    if (redisClient) {
+        redisClient.disconnect();
+        redisClient = null;
+    }
+}
+
+/**
+ * すべてのリソースをクリーンアップ
+ * テストのクリーンアップ用
+ */
+function cleanup() {
+    clearTimer();
+    disconnectRedis();
+}
+
 // タイマーを初期化
 initializeTimer();
 
 // Redisクライアントの初期化（環境変数が設定されている場合）
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
 let store;
+let redisClient = null;
 
 if (process.env.NODE_ENV === 'production' && !redisUrl) {
     throw new Error('FATAL: Redis (KV_URL or REDIS_URL) must be configured in production for rate limiting to work correctly in serverless environment.');
 }
 
 if (redisUrl) {
-    const client = new Redis(redisUrl);
+    redisClient = new Redis(redisUrl);
     store = new RedisStore({
-        sendCommand: (...args) => client.call(...args),
+        sendCommand: (...args) => redisClient.call(...args),
     });
 } else {
     console.warn('WARNING: Redis is not configured. Rate limiting will be ineffective in serverless environments.');
@@ -261,6 +282,8 @@ router.post('/', strictLimiter, async (req, res, next) => {
 
 module.exports = router;
 module.exports.clearTimer = clearTimer;
+module.exports.disconnectRedis = disconnectRedis;
+module.exports.cleanup = cleanup;
 
 // Export for testing purposes only
 if (process.env.NODE_ENV === 'test') {
