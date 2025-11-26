@@ -306,6 +306,21 @@ describe('renderSubscriptSuperscript', () => {
         renderSubscriptSuperscript(container, 'x^2^3_1_2');
         expect(container.innerHTML).toBe('x<span class="superscript">2</span><span class="superscript">3</span><span class="subscript">1</span><span class="subscript">2</span>');
     });
+
+    test('handles very long text efficiently', () => {
+        const longText = 'x^2 '.repeat(1000);
+        const start = Date.now();
+        renderSubscriptSuperscript(container, longText);
+        const duration = Date.now() - start;
+        expect(duration).toBeLessThan(1000); // Should complete within 1 second
+    });
+
+    test('creates correct DOM structure', () => {
+        renderSubscriptSuperscript(container, 'x^2');
+        expect(container.childNodes.length).toBe(2);
+        expect(container.childNodes[0].nodeType).toBe(Node.TEXT_NODE);
+        expect(container.childNodes[1].nodeName).toBe('SPAN');
+    });
 });
 
 describe('debounce', () => {
