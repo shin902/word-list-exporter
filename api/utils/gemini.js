@@ -58,18 +58,20 @@ async function performOCR(base64Image) {
     });
 
     if (!response.ok) {
-        let errorDetail = 'Unknown error';
+        // Log the detailed error for server-side debugging
         try {
             const error = await response.json();
-            errorDetail = JSON.stringify(error);
+            console.error('Gemini API error details (JSON):', JSON.stringify(error, null, 2));
         } catch (e) {
             try {
-                errorDetail = await response.text();
+                const errorText = await response.text();
+                console.error('Gemini API error details (Text):', errorText);
             } catch (e2) {
-                errorDetail = 'Could not read response body';
+                console.error('Could not read Gemini API response body');
             }
         }
-        throw new Error(`Gemini API error: ${response.status} - ${errorDetail}`);
+        // Throw a generic error to the client to avoid leaking implementation details
+        throw new Error(`Gemini API error: ${response.status} - API request failed`);
     }
 
     const data = await response.json();
