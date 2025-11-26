@@ -147,10 +147,15 @@ function loadCards() {
 // ローカルストレージに単語カードを保存
 function saveCards(cards) {
     const dataStr = JSON.stringify(cards);
-    // UTF-16エンコーディングを考慮し、バイトサイズを概算 (1文字あたり最大2バイト)
+    // JSの文字列はUTF-16エンコードであり、文字ごとに1-2バイトを使用する。
+    // 安全マージンを考慮し、1文字あたり2バイトとしてサイズを概算する。
+    // これによりASCII文字が多い場合に過大評価されるが、DoS攻撃防止の目的では許容される。
     const estimatedSize = dataStr.length * 2;
     const WARNING_THRESHOLD = 4 * 1024 * 1024; // 4MB 警告閾値
-    const MAX_STORAGE_SIZE = 4.8 * 1024 * 1024; // 4.8MB 上限 (5MB制限より手前)
+
+    // ほとんどのブラウザでlocalStorageの上限は5MBだが、実装に依存する。
+    // 安全のため、5MBより少し低い4.8MBをハードリミットとして設定する。
+    const MAX_STORAGE_SIZE = 4.8 * 1024 * 1024; // 4.8MB 上限
 
     // 致命的なエラー: データが大きすぎて保存操作を試行しない
     if (estimatedSize > MAX_STORAGE_SIZE) {
@@ -184,7 +189,13 @@ function createCard(category, question, answer) {
     };
     const cards = loadCards();
     cards.push(card);
-    saveCards(cards);
+    try {
+        saveCards(cards);
+    } catch (error) {
+        console.error('カードの作成に失敗しました:', error);
+        // UI層で処理できるようエラーを再スロー
+        throw error;
+    }
 }
 
 /**
