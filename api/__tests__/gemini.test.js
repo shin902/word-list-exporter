@@ -1,7 +1,6 @@
 /**
  * @jest-environment node
  */
-
 const { performOCR } = require('../utils/gemini');
 
 const originalFetch = global.fetch;
@@ -18,7 +17,7 @@ describe('performOCR', () => {
     afterEach(() => {
         consoleErrorSpy.mockRestore();
         jest.resetAllMocks();
-        delete process.env.GEMINI_API_KEY; // Add this
+        delete process.env.GEMINI_API_KEY;
     });
 
     afterAll(() => {
@@ -136,7 +135,7 @@ describe('performOCR', () => {
     });
 
     it('does not expose JSON parse position details to client', async () => {
-        const invalidJson = '{"question": "test", "answer": "test"'; // Missing closing brace
+        const invalidJson = '{"question": "test", "answer": "test"';
         const mockApiResponse = {
             candidates: [{
                 content: {
@@ -150,21 +149,16 @@ describe('performOCR', () => {
             json: jest.fn().mockResolvedValue(mockApiResponse)
         });
 
-        // The main expectation is that a generic error is thrown
         await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
 
-        // Verify the client-facing error does not contain implementation details by catching it again
         try {
             await performOCR('some-base64-data');
-            // Fail test if it doesn't throw
             fail('performOCR should have thrown an error');
         } catch (e) {
             expect(e.message).not.toMatch(/position \d+/);
             expect(e.message).not.toMatch(/Unexpected token/i);
         }
 
-        // Check that the detailed error was logged internally
-        // Note: The exact error message from JSON.parse can vary between Node.js versions
         expect(consoleErrorSpy).toHaveBeenCalledWith(
             'Failed to parse Gemini response:',
             expect.stringMatching(

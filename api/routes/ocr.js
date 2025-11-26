@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
-const { LRUCache } = require('lru-cache');
+const LRUCache = require('lru-cache');
 const { performOCR } = require('../utils/gemini');
 const { getClientIp, sanitizeClientIp } = require('../utils/network');
 
