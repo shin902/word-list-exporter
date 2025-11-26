@@ -1,47 +1,5 @@
 const crypto = require('crypto');
 
-const MAX_ERROR_MESSAGE_LENGTH = parseInt(process.env.MAX_ERROR_LENGTH, 10) || 200;
-
-/**
- * Sanitizes error messages by removing sensitive path information
- * Handles both Unix-style (/path/to/file) and Windows-style (C:\path\to\file) paths.
- *
- * Examples of paths that will be sanitized:
- * - Unix: /etc/passwd, /home/user/file.txt, /var/log/app.log
- * - Windows: C:\file.txt, C:\Windows\System32\config, D:\data\secret.json
- * - Paths with spaces: /home/user/my documents/file.txt, C:\Program Files\app\config.ini
- *
- * @param {string} message - The error message to sanitize
- * @returns {string} The sanitized message
- */
-function sanitizeMessage(message) {
-    if (!message || typeof message !== 'string') {
-        return 'An error occurred';
-    }
-
-    let sanitized = message;
-
-    // Remove Windows paths (including single-level paths like C:\file.txt)
-    // Pattern: Drive letter + colon + backslash + any valid Windows path characters
-    // Examples: C:\file.txt, D:\folder\file.txt, C:\Program Files\app\config.ini
-    sanitized = sanitized.replace(/[A-Za-z]:\\[\w\s\-.+\\]+/g, '[PATH]');
-
-    // Remove Unix absolute paths
-    // Pattern: Starting with / followed by path segments
-    // Examples: /etc/passwd, /home/user/file.txt, /var/log/app.log
-    sanitized = sanitized.replace(/\/(?:[\w\s\-.+]+\/)+[\w\s\-.+]+/g, '[PATH]');
-
-    // Additional pattern for Unix paths with specific structure (file extension or multiple levels)
-    // This catches paths that might have been missed by the previous pattern
-    sanitized = sanitized.replace(/\/(?:[\w\-]+\/)+[\w\-.]+(?:\.\w+)?/g, '[PATH]');
-
-    // Truncate long messages
-    if (sanitized.length > MAX_ERROR_MESSAGE_LENGTH) {
-        sanitized = sanitized.substring(0, MAX_ERROR_MESSAGE_LENGTH) + '...';
-    }
-
-    return sanitized;
-}
 
 /**
  * Returns a generic error message for common HTTP status codes
@@ -64,9 +22,17 @@ function getGenericMessageForStatus(status) {
 }
 
 /**
- * Express error handler middleware with secure error handling
- * - All environments: Returns sanitized, generic messages to prevent information disclosure
- * - Detailed errors are logged server-side only with errorId for correlation
+ * Express error handler middleware with secure error handling.
+ * - All environments: Returns generic messages to prevent information disclosure.
+ * - Detailed errors are logged server-side only with a unique errorId for correlation.
+ *
+ * @example
+ * // Final response format:
+ * {
+ *   "error": "サーバーエラーが発生しました。",
+ *   "errorId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+ * }
+ *
  * @param {Error} err - Error object
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -124,12 +90,12 @@ function errorHandler(err, req, res, next) {
         }
     }
 
-    // Handle errors with status codes (from body-parser, etc.)
+    // Handle other errors with status codes
     if (err && (err.status || err.statusCode)) {
         const status = err.status || err.statusCode;
 
-        // Use generic messages or sanitized messages for better security in all environments
-        const messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
+        // In all environments, prioritize generic messages to prevent information disclosure.
+        const messageForClient = getGenericMessageForStatus(status) || 'サーバーエラーが発生しました。しばらくしてから再試行してください。';
         return sendResponse(status, messageForClient);
     }
 

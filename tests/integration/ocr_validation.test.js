@@ -106,6 +106,14 @@ describe('OCR Validation Integration Tests', () => {
         }, 10000); // Increase timeout for large payload
     });
 
+    it('should reject invalid Base64 data', async () => {
+        const response = await request(app)
+            .post('/api/ocr')
+            .send({ image: 'data:image/jpeg;base64,Invalid!!!@@@###' });
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBeTruthy();
+    });
+
     afterAll(() => {
         // Clean up timer to prevent "worker has failed to exit gracefully" warning
         const { clearTimer } = require('../../api/routes/ocr');

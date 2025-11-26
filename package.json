@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon api/index.js",
     "build": "echo 'No build step required'",
-    "test": "jest",
+    "test": "jest --config jest.config.jsdom.js && jest --config jest.config.node.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "prepare": "husky"
@@ -26,30 +26,6 @@
     "jest-environment-jsdom": "^29.7.0",
     "nodemon": "^3.1.11",
     "supertest": "^7.1.4"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "forceExit": true,
-    "testMatch": [
-      "**/tests/**/*.test.js",
-      "**/api/__tests__/**/*.test.js"
-    ],
-    "collectCoverageFrom": [
-      "app.js",
-      "!node_modules/**",
-      "!tests/**"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 50,
-        "functions": 50,
-        "lines": 50,
-        "statements": 50
-      }
-    },
-    "setupFilesAfterEnv": [
-      "<rootDir>/tests/setup.js"
-    ]
   },
   "dependencies": {
     "cors": "^2.8.5",
