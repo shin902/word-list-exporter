@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 // tests/unit/gemini.test.js
 const { performOCR } = require('../../api/utils/gemini');
 
