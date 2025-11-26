@@ -63,7 +63,7 @@
 
    **環境変数一覧:**
    - `GEMINI_API_KEY`: Google Gemini APIのキー（必須）
-   - `FRONTEND_URL`: フロントエンドのURL（CORS設定用）。開発環境では `http://localhost:5500` など、本番環境ではデプロイ先のURLを指定します。
+   - `FRONTEND_URL`: フロントエンドのURL（CORS設定用）。開発環境で未設定の場合、`http://localhost:5500`がデフォルト値として使用されます。セキュリティのため、ご自身の開発環境に合わせて明示的に設定することを強く推奨します。本番環境ではデプロイ先のURLを指定します。
    - `PORT`: サーバーのポート番号（デフォルト: 3000）
    - `NODE_ENV`: 環境設定（`development` または `production`）
    - `KV_URL` または `REDIS_URL`: Redis接続URL（**本番環境では必須**）。レート制限の管理に使用されます。
