@@ -270,3 +270,4 @@ module.exports.clearTimer = clearTimer;
 module.exports.trackFailedValidation = trackFailedValidation;
 module.exports.failedValidationCounter = failedValidationCounter;
 module.exports.MAX_COUNTER_ENTRIES = MAX_COUNTER_ENTRIES;
+module.exports.FAILED_VALIDATION_THRESHOLD = FAILED_VALIDATION_THRESHOLD;

@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe('DoS Protection via failedValidationCounter', () => {
     // Expose internal state for testing. In a real app, you might use dependency injection.
-    const { trackFailedValidation, failedValidationCounter, MAX_COUNTER_ENTRIES, clearTimer } = ocr;
+    const { trackFailedValidation, failedValidationCounter, MAX_COUNTER_ENTRIES, FAILED_VALIDATION_THRESHOLD, clearTimer } = ocr;
 
     beforeEach(() => {
         failedValidationCounter.clear();
@@ -59,5 +59,31 @@ describe('DoS Protection via failedValidationCounter', () => {
         trackFailedValidation('192.168.0.0');
         expect(failedValidationCounter.size).toBe(MAX_COUNTER_ENTRIES);
         expect(failedValidationCounter.get('192.168.0.0')).toBe(2);
+    });
+
+    it('should log warning when IP reaches threshold after eviction', () => {
+        for (let i = 0; i < MAX_COUNTER_ENTRIES; i++) {
+            trackFailedValidation(`192.168.0.${i}`);
+        }
+
+        const newIp = '10.0.0.1';
+        for (let i = 0; i < FAILED_VALIDATION_THRESHOLD; i++) {
+            trackFailedValidation(newIp);
+        }
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+            expect.stringContaining(`Possible DoS attack detected from IP: ${newIp}`)
+        );
+    });
+
+    it('should allow adding an entry when at limit-1', () => {
+        for (let i = 0; i < MAX_COUNTER_ENTRIES - 1; i++) {
+            trackFailedValidation(`192.168.0.${i}`);
+        }
+
+        trackFailedValidation('10.0.0.1');
+        expect(failedValidationCounter.size).toBe(MAX_COUNTER_ENTRIES);
+        expect(failedValidationCounter.has('192.168.0.0')).toBe(true);
+        expect(failedValidationCounter.has('10.0.0.1')).toBe(true);
     });
 });
