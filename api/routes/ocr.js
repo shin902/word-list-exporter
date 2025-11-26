@@ -12,6 +12,7 @@ const router = express.Router();
 const failedValidationCounter = new Map();
 const FAILED_VALIDATION_THRESHOLD = 10; // 10回の失敗でアラート
 const COUNTER_RESET_INTERVAL = 15 * 60 * 1000; // 15分でリセット
+const MAX_COUNTER_ENTRIES = 10000; // メモリ枯渇を防ぐためのカウンター上限
 
 // タイマー管理
 let counterResetTimer = null;
@@ -139,6 +140,13 @@ function isValidBase64Sample(str) {
  * @param {string} ip - リクエスト元のIPアドレス
  */
 function trackFailedValidation(ip) {
+    // メモリ枯渇攻撃を防ぐため、カウンターのサイズを制限
+    if (failedValidationCounter.size >= MAX_COUNTER_ENTRIES && !failedValidationCounter.has(ip)) {
+        // Mapが上限に達し、かつ新しいIPの場合、最も古いエントリを削除
+        const firstKey = failedValidationCounter.keys().next().value;
+        failedValidationCounter.delete(firstKey);
+    }
+
     const count = (failedValidationCounter.get(ip) || 0) + 1;
     failedValidationCounter.set(ip, count);
     
@@ -259,3 +267,6 @@ router.post('/', strictLimiter, async (req, res, next) => {
 
 module.exports = router;
 module.exports.clearTimer = clearTimer;
+module.exports.trackFailedValidation = trackFailedValidation;
+module.exports.failedValidationCounter = failedValidationCounter;
+module.exports.MAX_COUNTER_ENTRIES = MAX_COUNTER_ENTRIES;
