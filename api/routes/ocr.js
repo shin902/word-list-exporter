@@ -57,12 +57,14 @@ function clearTimer() {
 /**
  * Redisクライアントを切断
  * テストのクリーンアップ用
- * disconnect()を使用して即座に接続を切断
+ * 
+ * disconnect()を使用: quit()とは異なり、保留中のコマンドを待たずに即座に接続を切断します。
+ * これはテストクリーンアップに適しており、タイムアウトやハングを防ぎます。
  */
 function disconnectRedis() {
     if (redisClient) {
         try {
-            // disconnect() immediately closes the connection without waiting
+            // disconnect() immediately closes the connection without waiting for pending commands
             redisClient.disconnect();
         } catch (e) {
             // Ignore errors during cleanup
