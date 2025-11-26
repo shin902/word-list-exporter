@@ -146,8 +146,24 @@ function loadCards() {
 
 // ローカルストレージに単語カードを保存
 function saveCards(cards) {
+    const dataStr = JSON.stringify(cards);
+    // UTF-16エンコーディングを考慮し、バイトサイズを概算 (1文字あたり最大2バイト)
+    const estimatedSize = dataStr.length * 2;
+    const WARNING_THRESHOLD = 4 * 1024 * 1024; // 4MB 警告閾値
+    const MAX_STORAGE_SIZE = 4.8 * 1024 * 1024; // 4.8MB 上限 (5MB制限より手前)
+
+    // 致命的なエラー: データが大きすぎて保存操作を試行しない
+    if (estimatedSize > MAX_STORAGE_SIZE) {
+        throw new Error(`データサイズが大きすぎます (${(estimatedSize / 1024 / 1024).toFixed(2)}MB)。保存できません。`);
+    }
+
+    // 警告: ユーザーに将来の問題を通知
+    if (estimatedSize > WARNING_THRESHOLD) {
+        console.warn('カードデータのサイズが大きくなっています:', (estimatedSize / 1024 / 1024).toFixed(2) + 'MB');
+    }
+
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+        localStorage.setItem(STORAGE_KEY, dataStr);
     } catch (e) {
         handleStorageError(e, 'カードデータ');
     }
