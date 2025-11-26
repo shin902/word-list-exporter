@@ -107,4 +107,44 @@ describe('gemini.js - performOCR', () => {
         // Verify that a fallback message was logged
         expect(consoleErrorSpy).toHaveBeenCalledWith('Could not read Gemini API response body');
     });
+
+    it('should throw generic error and log details when response is not an array', async () => {
+        const mockApiResponse = {
+            candidates: [{
+                content: {
+                    parts: [{ text: '{"key": "value"}' }] // Valid JSON, not array
+                }
+            }]
+        };
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: jest.fn().mockResolvedValue(mockApiResponse),
+        });
+
+        await expect(performOCR('base64')).rejects.toThrow('Invalid response format from Gemini API');
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini response is not an array:', '{"key": "value"}');
+    });
+
+    it('should throw generic error and log details when JSON parsing fails', async () => {
+        const mockApiResponse = {
+            candidates: [{
+                content: {
+                    parts: [{ text: '{invalid json}' }]
+                }
+            }]
+        };
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: jest.fn().mockResolvedValue(mockApiResponse),
+        });
+
+        await expect(performOCR('base64')).rejects.toThrow('Invalid response format from Gemini API');
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+            'Failed to parse Gemini response:',
+            expect.any(String),
+            '{invalid json}'
+        );
+    });
 });
