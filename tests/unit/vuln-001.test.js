@@ -1,7 +1,7 @@
 // tests/vuln-001.test.js
 
 // JSDOM環境のセットアップ
-require('./setup');
+require('../setup');
 
 describe('vulnerability: Prototype Pollution (vuln-001)', () => {
     let app;
@@ -13,7 +13,7 @@ describe('vulnerability: Prototype Pollution (vuln-001)', () => {
         expect({}.polluted).toBeUndefined();
         // appモジュールを動的にインポート
         jest.isolateModules(() => {
-            app = require('../public/app.js');
+            app = require('../../public/app.js');
         });
     });
 
@@ -105,5 +105,41 @@ describe('vulnerability: Prototype Pollution (vuln-001)', () => {
         expect(cards[0].question).toBe('q1');
         expect(cards[1].question).toBe('q2');
         expect(cards[1].polluted).toBeUndefined();
+    });
+
+    test('should handle malicious category objects and assign a default category', () => {
+        const maliciousPayload = JSON.stringify([
+            {
+                "question": "test",
+                "answer": "test",
+                "category": { "__proto__": { "polluted": true } }
+            }
+        ]);
+
+        localStorage.setItem('MEMORY', maliciousPayload);
+        const cards = app.loadCards();
+
+        expect({}.polluted).toBeUndefined();
+        expect(cards.length).toBe(1);
+        expect(typeof cards[0].category).toBe('string');
+        expect(cards[0].category).toBe('未分類');
+    });
+
+    test('should still migrate legacy cards without an ID', () => {
+        const legacyPayload = JSON.stringify([
+            {
+                "question": "legacy question",
+                "answer": "legacy answer",
+                "category": "legacy"
+            }
+        ]);
+
+        localStorage.setItem('MEMORY', legacyPayload);
+        const cards = app.loadCards();
+
+        expect(cards.length).toBe(1);
+        expect(cards[0].question).toBe('legacy question');
+        expect(cards[0].id).toBeDefined();
+        expect(typeof cards[0].id).toBe('string');
     });
 });
