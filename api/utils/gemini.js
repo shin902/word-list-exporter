@@ -87,23 +87,24 @@ async function performOCR(base64Image) {
     const text = data.candidates[0].content.parts?.[0]?.text;
 
     if (!text) {
-        // More specific internal error, but client gets the same generic message
         throw new Error('Invalid response format from Gemini API: missing text');
     }
 
     // Parse and validate JSON response from Gemini API.
     // Generic errors are thrown to prevent information disclosure (vuln-006).
+    let cards;
     try {
-        const cards = JSON.parse(text);
-        if (!Array.isArray(cards)) {
-            console.error('Gemini response is not an array:', text);
-            throw new Error(INVALID_RESPONSE_ERROR);
-        }
-        return cards; // Return array of {question, answer} objects directly
+        cards = JSON.parse(text);
     } catch (e) {
         console.error('Failed to parse Gemini response:', e.message, text);
         throw new Error(INVALID_RESPONSE_ERROR);
     }
+
+    if (!Array.isArray(cards)) {
+        console.error('Gemini response is not an array:', text);
+        throw new Error(INVALID_RESPONSE_ERROR);
+    }
+    return cards;
 }
 
 module.exports = { performOCR };
