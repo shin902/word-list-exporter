@@ -262,27 +262,82 @@ function sanitizeInput(text, maxLength = 1000) {
 }
 
 /**
- * 上付き・下付き文字を変換（XSS対策のため先にエスケープ）
- * ReDoS攻撃を防ぐため、最大長を制限
+ * 上付き・下付き文字を安全にレンダリング（DOM API使用）
+ * @param {HTMLElement} container - レンダリング対象のコンテナ要素
  * @param {string} text - 変換するテキスト
- * @returns {string} 変換されたHTML
  */
-function parseSubscriptSuperscript(text) {
-    // まずHTMLエスケープしてXSS攻撃を防ぐ
-    text = escapeHtml(text);
+function renderSubscriptSuperscript(container, text) {
+    if (!container) {
+        console.warn('renderSubscriptSuperscriptに無効なコンテナが渡されました。');
+        return;
+    }
+    // 既存のコンテンツをクリア
+    container.textContent = '';
 
-    // 波括弧付き上付き文字: ^{text} (最大100文字に制限してReDoS防止)
-    text = text.replace(/\^\{([^}]{1,100})\}/g, '<span class="superscript">$1</span>');
-    // 単一文字上付き文字: ^x
-    text = text.replace(/\^(.)/g, '<span class="superscript">$1</span>');
+    // XSS対策のtextContent使用に加え、念のため制御文字もサニタイズ
+    const sanitizedText = sanitizeInput(text || '', 1000);
 
-    // 波括弧付き下付き文字: _{text} (最大100文字に制限してReDoS防止)
-    text = text.replace(/\_\{([^}]{1,100})\}/g, '<span class="subscript">$1</span>');
-    // 単一文字下付き文字: _x
-    text = text.replace(/\_(.)/g, '<span class="subscript">$1</span>');
+    // 正規表現ですべてのマッチを一度にキャプチャ
+    // [^\s] は、^ または _ の後にスペースが続く場合にマッチしないようにする（例: "a^ " は変換されない）
+    // グループ1: ^{...} (全体)、グループ2: {...} の中身
+    // グループ3: ^. (全体)、グループ4: . の文字
+    // グループ5: _{...} (全体)、グループ6: {...} の中身
+    // グループ7: _. (全体)、グループ8: . の文字
+    const regex = /(\^\{([^}]{1,100})\})|(\^([^\s]))|(\_\{([^}]{1,100})\})|(\_([^\s]))/g;
 
-    return text;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(sanitizedText)) !== null) {
+        // ゼロ幅マッチでの無限ループを防止する
+        if (match[0].length === 0) {
+            regex.lastIndex++;
+            continue;
+        }
+        const fullMatch = match[0];
+        const matchIndex = match.index;
+
+        // マッチ前のテキストを追加
+        if (matchIndex > lastIndex) {
+            container.appendChild(document.createTextNode(sanitizedText.substring(lastIndex, matchIndex)));
+        }
+
+        let content = '';
+        let className = '';
+
+        if (match[1]) { // ^{...}
+            content = match[2];
+            className = 'superscript';
+        } else if (match[3]) { // ^.
+            content = match[4];
+            className = 'superscript';
+        } else if (match[5]) { // _{...}
+            content = match[6];
+            className = 'subscript';
+        } else if (match[7]) { // _.
+            content = match[8];
+            className = 'subscript';
+        }
+
+        if (content && className) {
+            const span = document.createElement('span');
+            span.className = className;
+            span.textContent = content; // 安全なtextContentを使用
+            container.appendChild(span);
+        } else {
+            // マッチが期待通りでない場合は、そのままテキストとして追加
+            container.appendChild(document.createTextNode(fullMatch));
+        }
+
+        lastIndex = regex.lastIndex;
+    }
+
+    // 残りのテキストを追加
+    if (lastIndex < sanitizedText.length) {
+        container.appendChild(document.createTextNode(sanitizedText.substring(lastIndex)));
+    }
 }
+
 
 // ビュー管理
 function showView(viewId) {
@@ -414,11 +469,11 @@ function renderListView() {
 
                 const cardQuestion = document.createElement('div');
                 cardQuestion.className = 'card-question';
-                cardQuestion.innerHTML = parseSubscriptSuperscript(card.question);
+                renderSubscriptSuperscript(cardQuestion, card.question);
 
                 const cardAnswer = document.createElement('div');
                 cardAnswer.className = 'card-answer';
-                cardAnswer.innerHTML = parseSubscriptSuperscript(card.answer);
+                renderSubscriptSuperscript(cardAnswer, card.answer);
 
                 cardContent.appendChild(cardQuestion);
                 cardContent.appendChild(cardAnswer);
@@ -502,7 +557,7 @@ function displayCurrentCard() {
     document.getElementById('quiz-category').textContent = currentCard.category;
 
     // 問題を表示
-    document.getElementById('question-text').innerHTML = parseSubscriptSuperscript(currentCard.question);
+    renderSubscriptSuperscript(document.getElementById('question-text'), currentCard.question);
 
     // 解答エリアを非表示にする
     document.getElementById('answer-area').classList.add('hidden');
@@ -521,7 +576,7 @@ if (typeof document !== 'undefined') {
             if (!isAnswerShown) {
                 // 解答を表示
                 const currentCard = quizWordArray[currentIndex];
-                document.getElementById('answer-text').innerHTML = parseSubscriptSuperscript(currentCard.answer);
+                renderSubscriptSuperscript(document.getElementById('answer-text'), currentCard.answer);
                 document.getElementById('answer-area').classList.remove('hidden');
                 document.getElementById('quiz-action-btn').textContent = '次へ';
                 isAnswerShown = true;
@@ -1097,7 +1152,7 @@ if (typeof module !== 'undefined' && module.exports) {
         escapeHtml,
         escapeHtmlAttr,
         sanitizeInput,
-        parseSubscriptSuperscript,
+        renderSubscriptSuperscript,
         debounce,
         performOCR,
         shuffleCards,
