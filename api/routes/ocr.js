@@ -5,7 +5,7 @@ const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
 const { LRUCache } = require('lru-cache');
 const { performOCR } = require('../utils/gemini');
-const { sanitizeClientIp } = require('../utils/network');
+const { getClientIp, sanitizeClientIp } = require('../utils/network');
 
 const router = express.Router();
 
@@ -175,11 +175,7 @@ function sendValidationError(res, status, message, clientIp) {
 }
 
 router.post('/', strictLimiter, async (req, res, next) => {
-    // リクエスト元IPを取得（ログ用）
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                     req.headers['x-real-ip'] || 
-                     req.ip || 
-                     'unknown';
+    const clientIp = getClientIp(req);
     
     try {
         const { image } = req.body;
@@ -267,6 +263,9 @@ module.exports = router;
 module.exports.clearTimer = clearTimer;
 
 // Export for testing purposes only
+if (process.env.NODE_ENV === 'test') {
+    module.exports.sendValidationError = sendValidationError;
+}
 module.exports.trackFailedValidation = trackFailedValidation;
 module.exports.failedValidationCounter = failedValidationCounter;
 module.exports.MAX_COUNTER_ENTRIES = MAX_COUNTER_ENTRIES;

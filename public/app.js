@@ -100,19 +100,28 @@ function loadCards() {
         // 配列であることを確認
         if (!Array.isArray(parsed)) return [];
 
-        // レガシーカード（IDがない）を移行
+        // 移行が必要かどうかを追跡
         let needsMigration = false;
-        const migratedCards = parsed.map(card => {
-            if (!card) return card; // Handle null/undefined
-            if (!card.id) {
-                needsMigration = true;
-                return {
-                    ...card,
-                    id: generateUniqueId()
+        const migratedCards = parsed
+            // 1. Prototype Pollution/Invalid Data対策: null, undefined, 非オブジェクトを除外
+            .filter(card => card && typeof card === 'object')
+            .map(card => {
+                // 2. Prototype Pollution対策: 安全なオブジェクトを作成
+                // 信頼できないソースからのオブジェクトは、プロパティを明示的に検証・コピーする
+                const safeCard = {
+                    question: typeof card.question === 'string' ? card.question : '',
+                    answer: typeof card.answer === 'string' ? card.answer : '',
+                    category: typeof card.category === 'string' ? card.category : '未分類',
+                    id: typeof card.id === 'string' ? card.id : null // IDは文字列のみ許容
                 };
-            }
-            return card;
-        });
+
+                // 3. レガシーカード（IDがない）を移行
+                if (!safeCard.id) {
+                    needsMigration = true;
+                    safeCard.id = generateUniqueId();
+                }
+                return safeCard;
+            });
 
         // 移行が必要な場合は保存
         if (needsMigration) {
