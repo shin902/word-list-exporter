@@ -1,7 +1,8 @@
 // データ操作関数
 const STORAGE_KEY = 'MEMORY';
-
 const MAX_IMPORT_TEXT_LENGTH = 100000; // インポートテキストの最大長
+const WARNING_THRESHOLD = 4 * 1024 * 1024; // 4MB
+const MAX_STORAGE_SIZE = 4.8 * 1024 * 1024; // 4.8MB
 
 /**
  * 衝突のないユニークIDを生成
@@ -150,16 +151,14 @@ function saveCards(cards) {
     // JSの文字列はUTF-16エンコードであり、文字ごとに1-2バイトを使用する。
     // 安全マージンを考慮し、1文字あたり2バイトとしてサイズを概算する。
     // これによりASCII文字が多い場合に過大評価されるが、DoS攻撃防止の目的では許容される。
+    // 将来的には `new Blob([dataStr]).size` を使用するとより正確なサイズが得られる。
     const estimatedSize = dataStr.length * 2;
-    const WARNING_THRESHOLD = 4 * 1024 * 1024; // 4MB 警告閾値
-
-    // ほとんどのブラウザでlocalStorageの上限は5MBだが、実装に依存する。
-    // 安全のため、5MBより少し低い4.8MBをハードリミットとして設定する。
-    const MAX_STORAGE_SIZE = 4.8 * 1024 * 1024; // 4.8MB 上限
 
     // 致命的なエラー: データが大きすぎて保存操作を試行しない
     if (estimatedSize > MAX_STORAGE_SIZE) {
-        throw new Error(`データサイズが大きすぎます (${(estimatedSize / 1024 / 1024).toFixed(2)}MB)。保存できません。`);
+        const message = `合計データサイズが上限に近づいています (${(estimatedSize / 1024 / 1024).toFixed(2)}MB)。` +
+                        '新しいカードを追加する前に、いくつかカードを削除してください。';
+        throw new Error(message);
     }
 
     // 警告: ユーザーに将来の問題を通知

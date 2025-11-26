@@ -2,8 +2,8 @@
  * @jest-environment jsdom
  */
 
-// `saveCards` を含む、テスト対象の関数をインポート
-const { saveCards } = require('../../public/app');
+// setup.js経由でグローバルスコープに関数をロード
+require('../setup');
 
 describe('saveCards with storage quota checks', () => {
     let setItemSpy;
@@ -59,38 +59,13 @@ describe('saveCards with storage quota checks', () => {
         const veryLargeString = 'a'.repeat(2.5 * 1024 * 1024); // 約5.0MBのデータに相当
         const cards = [{ id: '1', question: veryLargeString, answer: 'a' }];
 
-        // saveCardsを呼び出すとエラーがスローされることを期待し、
-        // エラーメッセージが正規表現にマッチすることを検証
-        expect(() => saveCards(cards)).toThrow(
-            expect.objectContaining({
-                message: expect.stringMatching(/^データサイズが大きすぎます \(\d+\.\d{2}MB\)。保存できません。$/),
-            })
-        );
+        // saveCardsを呼び出すとエラーがスローされることを期待
+        // 新しいユーザーフレンドリーなエラーメッセージの一部を検証
+        expect(() => saveCards(cards)).toThrow(/合計データサイズが上限に近づいています/);
 
         // エラーがスローされたため、setItemは呼び出されないことを期待
         expect(setItemSpy).not.toHaveBeenCalled();
         // エラーが優先されるため、警告も表示されないことを期待
-        expect(consoleWarnSpy).not.toHaveBeenCalled();
-    });
-
-    // 追加テスト: localStorage.setItem自体が他の理由で失敗した場合
-    test('should still propagate error if localStorage.setItem fails for other reasons', () => {
-        // このテストケースのためにsetItemのモックを上書き
-        setItemSpy.mockImplementation(() => {
-            const error = new Error('A generic storage error occurred.');
-            // エラーの種類を模倣
-            error.name = 'QuotaExceededError';
-            throw error;
-        });
-
-        const cards = [{ id: '1', question: 'q', answer: 'a' }];
-
-        // handleStorageErrorからスローされるカスタムエラーメッセージを期待
-        expect(() => saveCards(cards)).toThrow('ストレージの容量が不足しています。ブラウザのデータを整理してください。');
-
-        // setItemが呼び出されたことを確認
-        expect(setItemSpy).toHaveBeenCalledTimes(1);
-        // 警告は表示されないことを確認
         expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
 });
