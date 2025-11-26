@@ -10,6 +10,16 @@ const { sanitizeClientIp } = require('./utils/network');
 
 const app = express();
 
+// Vercel等のリバースプロキシ環境で正しいIPアドレスを取得するため
+// X-Forwarded-Forヘッダーの左端のIPを信頼する
+if (process.env.NODE_ENV === 'test') {
+    // supertest環境でプロキシをシミュレートするため、ループバックとテスト用プロキシIPを信頼する
+    app.set('trust proxy', ['loopback', '10.0.0.1']);
+} else {
+    // Vercel等の環境では、左端のIPを信頼する
+    app.set('trust proxy', 1);
+}
+
 // セキュリティ - 情報漏洩を防ぐため厳格な設定
 app.use(helmet({
     contentSecurityPolicy: true,
