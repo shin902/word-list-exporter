@@ -258,6 +258,10 @@ function sanitizeInput(text, maxLength = 1000) {
  * @param {string} text - 変換するテキスト
  */
 function renderSubscriptSuperscript(container, text) {
+    if (!container) {
+        console.warn('renderSubscriptSuperscriptに無効なコンテナが渡されました。');
+        return;
+    }
     // 既存のコンテンツをクリア
     container.textContent = '';
 
@@ -265,10 +269,11 @@ function renderSubscriptSuperscript(container, text) {
     const sanitizedText = text || '';
 
     // 正規表現ですべてのマッチを一度にキャプチャ
-    // グループ1: ^{...}
-    // グループ2: ^.
-    // グループ3: _{...}
-    // グループ4: _.
+    // (?!\s) は、^ または _ の後にスペースが続く場合にマッチしないようにする（例: "a^ " は変換されない）
+    // グループ1: ^{...} (全体)、グループ2: {...} の中身
+    // グループ3: ^. (全体)、グループ4: . の文字
+    // グループ5: _{...} (全体)、グループ6: {...} の中身
+    // グループ7: _. (全体)、グループ8: . の文字
     const regex = /(\^\{([^}]{1,100})\})|(\^(?!\s)(.))|(\_\{([^}]{1,100})\})|(\_(?!\s)(.))/g;
 
     let lastIndex = 0;

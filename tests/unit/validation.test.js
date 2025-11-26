@@ -272,6 +272,25 @@ describe('renderSubscriptSuperscript', () => {
         renderSubscriptSuperscript(container, input);
         expect(container.innerHTML).toBe('ただのテキスト');
     });
+
+    test('handles null container gracefully', () => {
+        // console.warnをスパイして、エラーが出ないことを確認
+        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(() => renderSubscriptSuperscript(null, 'x^2')).not.toThrow();
+        expect(consoleWarnSpy).toHaveBeenCalledWith('renderSubscriptSuperscriptに無効なコンテナが渡されました。');
+        consoleWarnSpy.mockRestore();
+    });
+
+    test('handles undefined text', () => {
+        renderSubscriptSuperscript(container, undefined);
+        expect(container.innerHTML).toBe('');
+    });
+
+    test('does not nest patterns', () => {
+        renderSubscriptSuperscript(container, '^{x^2}');
+        // Should render "x^2" as superscript, not nested
+        expect(container.innerHTML).toBe('<span class="superscript">x^2</span>');
+    });
 });
 
 describe('debounce', () => {
