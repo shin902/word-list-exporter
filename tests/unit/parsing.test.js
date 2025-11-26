@@ -14,12 +14,6 @@ const {
 } = require('../../public/app');
 
 describe('parseTextToCards', () => {
-    // Mock DOM elements needed by parseTextToCards
-    beforeEach(() => {
-        document.body.innerHTML = `
-            <input id="import-category-input" value="テストカテゴリ" />
-        `;
-    });
 
     test('parses arrow-separated format', () => {
         const text = 'apple→りんご\nbanana→バナナ';
@@ -90,17 +84,30 @@ describe('parseTextToCards', () => {
 
     test('uses category from input field', () => {
         const text = 'apple→りんご';
+        const originalGetElementById = document.getElementById;
+        document.getElementById = jest.fn((id) => {
+            if (id === 'import-category-input') {
+                return { value: 'テストカテゴリ' };
+            }
+            return { value: '' }; // Default mock
+        });
         const cards = parseTextToCards(text);
-
         expect(cards[0].category).toBe('テストカテゴリ');
+        document.getElementById = originalGetElementById; // Restore
     });
 
     test('uses default category when input is empty', () => {
-        document.getElementById('import-category-input').value = '';
         const text = 'apple→りんご';
+        const originalGetElementById = document.getElementById;
+        document.getElementById = jest.fn((id) => {
+            if (id === 'import-category-input') {
+                return { value: '' };
+            }
+            return { value: '' }; // Default mock
+        });
         const cards = parseTextToCards(text);
-
         expect(cards[0].category).toBe('英単語');
+        document.getElementById = originalGetElementById; // Restore
     });
 
     test('handles empty lines', () => {

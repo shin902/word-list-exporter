@@ -1,47 +1,5 @@
 const crypto = require('crypto');
 
-const MAX_ERROR_MESSAGE_LENGTH = parseInt(process.env.MAX_ERROR_LENGTH, 10) || 200;
-
-/**
- * Sanitizes error messages by removing sensitive path information
- * Handles both Unix-style (/path/to/file) and Windows-style (C:\path\to\file) paths.
- *
- * Examples of paths that will be sanitized:
- * - Unix: /etc/passwd, /home/user/file.txt, /var/log/app.log
- * - Windows: C:\file.txt, C:\Windows\System32\config, D:\data\secret.json
- * - Paths with spaces: /home/user/my documents/file.txt, C:\Program Files\app\config.ini
- *
- * @param {string} message - The error message to sanitize
- * @returns {string} The sanitized message
- */
-function sanitizeMessage(message) {
-    if (!message || typeof message !== 'string') {
-        return 'An error occurred';
-    }
-
-    let sanitized = message;
-
-    // Remove Windows paths (including single-level paths like C:\file.txt)
-    // Pattern: Drive letter + colon + backslash + any valid Windows path characters
-    // Examples: C:\file.txt, D:\folder\file.txt, C:\Program Files\app\config.ini
-    sanitized = sanitized.replace(/[A-Za-z]:\\[\w\s\-.+\\]+/g, '[PATH]');
-
-    // Remove Unix absolute paths
-    // Pattern: Starting with / followed by path segments
-    // Examples: /etc/passwd, /home/user/file.txt, /var/log/app.log
-    sanitized = sanitized.replace(/\/(?:[\w\s\-.+]+\/)+[\w\s\-.+]+/g, '[PATH]');
-
-    // Additional pattern for Unix paths with specific structure (file extension or multiple levels)
-    // This catches paths that might have been missed by the previous pattern
-    sanitized = sanitized.replace(/\/(?:[\w\-]+\/)+[\w\-.]+(?:\.\w+)?/g, '[PATH]');
-
-    // Truncate long messages
-    if (sanitized.length > MAX_ERROR_MESSAGE_LENGTH) {
-        sanitized = sanitized.substring(0, MAX_ERROR_MESSAGE_LENGTH) + '...';
-    }
-
-    return sanitized;
-}
 
 /**
  * Returns a generic error message for common HTTP status codes

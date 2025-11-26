@@ -1,15 +1,8 @@
-// tests/setup-node.js
+/**
+ * Jest setup file for Node.js environment
+ */
 
-// Polyfill crypto for Node.js environment
-// This is necessary because while the `crypto` module is available,
-// its methods are not on the global scope by default in Jest's Node environment.
-const crypto = require('crypto');
-if (typeof global.crypto !== 'object') {
-    global.crypto = {};
-}
-if (typeof global.crypto.randomUUID !== 'function') {
-    global.crypto.randomUUID = crypto.randomUUID;
-}
+require('./utils/crypto-polyfill');
 
 // Cleanup OCR timer after all tests to prevent "worker has failed to exit gracefully" warning
 afterAll(() => {
