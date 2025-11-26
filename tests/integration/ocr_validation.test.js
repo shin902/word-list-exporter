@@ -2,13 +2,18 @@
  * @jest-environment node
  */
 const request = require('supertest');
-const app = require('../../api/index');
-const gemini = require('../../api/utils/gemini');
 
-// Mock the Gemini API utils
-jest.mock('../../api/utils/gemini', () => ({
-    performOCR: jest.fn().mockResolvedValue([])
-}));
+let app;
+let gemini;
+
+beforeAll(() => {
+    jest.resetModules();
+    jest.doMock('../../api/utils/gemini', () => ({
+        performOCR: jest.fn().mockResolvedValue([])
+    }));
+    app = require('../../api/index');
+    gemini = require('../../api/utils/gemini');
+});
 
 describe('OCR Validation Integration Tests', () => {
 
