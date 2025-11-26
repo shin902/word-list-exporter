@@ -17,7 +17,7 @@ function sanitizeClientIp(ip) {
  */
 function getClientIp(req) {
     // 'trust proxy'が有効なため、req.ipは信頼できるIPを返す
-    return req.ip || 'unknown';
+    return (req && req.ip && req.ip.trim()) || 'unknown';
 }
 
 module.exports = {

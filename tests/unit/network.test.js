@@ -30,5 +30,20 @@ describe('Network Utils', () => {
             };
             expect(getClientIp(req)).toBe('::ffff:127.0.0.1');
         });
+
+        it('should return "unknown" for empty string req.ip', () => {
+            const req = { ip: ' ' };
+            expect(getClientIp(req)).toBe('unknown');
+        });
+
+        it('should return "unknown" for null req.ip', () => {
+            const req = { ip: null };
+            expect(getClientIp(req)).toBe('unknown');
+        });
+
+        it('should return "unknown" for undefined req object', () => {
+            const req = {};
+            expect(getClientIp(req)).toBe('unknown');
+        });
     });
 });
