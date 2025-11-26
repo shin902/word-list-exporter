@@ -1,7 +1,8 @@
 // データ操作関数
 const STORAGE_KEY = 'MEMORY';
-
 const MAX_IMPORT_TEXT_LENGTH = 100000; // インポートテキストの最大長
+const WARNING_THRESHOLD = 4 * 1024 * 1024; // 4MB
+const MAX_STORAGE_SIZE = 4.8 * 1024 * 1024; // 4.8MB
 
 /**
  * 衝突のないユニークIDを生成
@@ -146,8 +147,27 @@ function loadCards() {
 
 // ローカルストレージに単語カードを保存
 function saveCards(cards) {
+    const dataStr = JSON.stringify(cards);
+    // JSの文字列はUTF-16エンコードであり、文字ごとに1-2バイトを使用する。
+    // 安全マージンを考慮し、1文字あたり2バイトとしてサイズを概算する。
+    // これによりASCII文字が多い場合に過大評価されるが、DoS攻撃防止の目的では許容される。
+    // 将来的には `new Blob([dataStr]).size` を使用するとより正確なサイズが得られる。
+    const estimatedSize = dataStr.length * 2;
+
+    // 致命的なエラー: データが大きすぎて保存操作を試行しない
+    if (estimatedSize > MAX_STORAGE_SIZE) {
+        const message = `合計データサイズが上限に近づいています (${(estimatedSize / 1024 / 1024).toFixed(2)}MB)。` +
+                        '新しいカードを追加する前に、いくつかカードを削除してください。';
+        throw new Error(message);
+    }
+
+    // 警告: ユーザーに将来の問題を通知
+    if (estimatedSize > WARNING_THRESHOLD) {
+        console.warn('カードデータのサイズが大きくなっています:', (estimatedSize / 1024 / 1024).toFixed(2) + 'MB');
+    }
+
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+        localStorage.setItem(STORAGE_KEY, dataStr);
     } catch (e) {
         handleStorageError(e, 'カードデータ');
     }
@@ -168,7 +188,13 @@ function createCard(category, question, answer) {
     };
     const cards = loadCards();
     cards.push(card);
-    saveCards(cards);
+    try {
+        saveCards(cards);
+    } catch (error) {
+        console.error('カードの作成に失敗しました:', error);
+        // UI層で処理できるようエラーを再スロー
+        throw error;
+    }
 }
 
 /**
