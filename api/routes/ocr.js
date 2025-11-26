@@ -21,6 +21,8 @@ const COUNTER_RESET_INTERVAL = 15 * 60 * 1000; // 15分でリセット
 
 // タイマー管理
 let counterResetTimer = null;
+// Redisクライアント管理
+let redisClient = null;
 
 /**
  * カウンターリセットタイマーを初期化
@@ -55,10 +57,11 @@ function clearTimer() {
 /**
  * Redisクライアントを切断
  * テストのクリーンアップ用
+ * quit()を使用して保留中の操作を完了させてから接続を閉じる
  */
 function disconnectRedis() {
     if (redisClient) {
-        redisClient.disconnect();
+        redisClient.quit();
         redisClient = null;
     }
 }
@@ -78,7 +81,6 @@ initializeTimer();
 // Redisクライアントの初期化（環境変数が設定されている場合）
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
 let store;
-let redisClient = null;
 
 if (process.env.NODE_ENV === 'production' && !redisUrl) {
     throw new Error('FATAL: Redis (KV_URL or REDIS_URL) must be configured in production for rate limiting to work correctly in serverless environment.');
