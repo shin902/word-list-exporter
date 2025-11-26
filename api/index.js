@@ -55,6 +55,20 @@ app.use(cors({
 // ボディパーサー（Base64エンコード後1MB + JSONメタデータを考慮）
 app.use(express.json({ limit: '1.5mb' }));
 
+// body-parserのペイロードサイズエラーを専門にハンドルするミドルウェア
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        // JSONパースエラー
+        return res.status(400).json({ error: 'リクエストのJSON形式が正しくありません。' });
+    }
+    if (err.type === 'entity.too.large') {
+        // ペイロードサイズ超過エラー
+        return res.status(413).json({ error: 'リクエストのペイロードが大きすぎます。' });
+    }
+    next(err);
+});
+
+
 // 静的ファイルの配信（ローカル開発用）
 app.use(express.static(path.join(__dirname, '../public')));
 

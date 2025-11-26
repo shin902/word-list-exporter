@@ -34,18 +34,15 @@ const localStorageMock = (() => {
 
 global.localStorage = localStorageMock;
 
-// Mock crypto.randomUUID if not available
-if (typeof crypto === 'undefined' || !crypto.randomUUID) {
-    global.crypto = {
-        randomUUID: () => {
-            // Fallback implementation for testing
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        }
-    };
+// Polyfill crypto for Node.js environment
+// This is necessary because while the `crypto` module is available,
+// its methods are not on the global scope by default in Jest's Node environment.
+const crypto = require('crypto');
+if (typeof global.crypto !== 'object') {
+    global.crypto = {};
+}
+if (typeof global.crypto.randomUUID !== 'function') {
+    global.crypto.randomUUID = crypto.randomUUID;
 }
 
 // Mock DOM elements to prevent errors during app.js execution

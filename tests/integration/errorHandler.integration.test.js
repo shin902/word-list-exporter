@@ -308,7 +308,7 @@ describe('Error Handler Integration Tests', () => {
             expect(response.body.error).toBe('サーバーエラーが発生しました。');
         });
 
-        it('should sanitize actual __filename paths', async () => {
+        it('should return a generic message for actual __filename paths', async () => {
             const actualFile = __filename; // Real file path
             app.get('/test', (req, res) => {
                 const err = new Error(`Cannot access ${actualFile}`);
@@ -321,15 +321,15 @@ describe('Error Handler Integration Tests', () => {
 
             expect(response.status).toBe(418);
             const errorMessage = response.body.error;
-            // Should contain [PATH] placeholder
-            expect(errorMessage).toContain('[PATH]');
+            // Should return a generic message
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
             // Should not contain any part of the actual path
             expect(errorMessage).not.toContain('errorHandler');
             expect(errorMessage).not.toContain('integration');
             expect(errorMessage).not.toContain('.test.js');
         });
 
-        it('should sanitize paths in stack traces when status is provided', async () => {
+        it('should return a generic message for paths in stack traces', async () => {
             const actualPath = require('path').resolve(__dirname, '../../api/middleware/errorHandler.js');
             app.get('/test', (req, res) => {
                 const err = new Error(`Module error at ${actualPath}`);
@@ -341,7 +341,7 @@ describe('Error Handler Integration Tests', () => {
             const response = await request(app).get('/test');
 
             expect(response.status).toBe(418);
-            expect(response.body.error).toContain('[PATH]');
+            expect(response.body.error).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
             expect(response.body.error).not.toContain('errorHandler.js');
         });
     });

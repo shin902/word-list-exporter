@@ -124,12 +124,12 @@ function errorHandler(err, req, res, next) {
         }
     }
 
-    // Handle errors with status codes (from body-parser, etc.)
+    // Handle other errors with status codes
     if (err && (err.status || err.statusCode)) {
         const status = err.status || err.statusCode;
 
-        // Use generic messages or sanitized messages for better security in all environments
-        const messageForClient = getGenericMessageForStatus(status) || sanitizeMessage(rawMessage);
+        // In all environments, prioritize generic messages to prevent information disclosure.
+        const messageForClient = getGenericMessageForStatus(status) || 'サーバーエラーが発生しました。しばらくしてから再試行してください。';
         return sendResponse(status, messageForClient);
     }
 

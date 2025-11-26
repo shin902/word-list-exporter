@@ -84,8 +84,8 @@ describe('Error Handler Middleware', () => {
 
             expect(res.status).toHaveBeenCalledWith(418);
             const errorMessage = res.json.mock.calls[0][0].error;
-            expect(errorMessage).toContain('[PATH]');
-            expect(errorMessage).not.toContain('/home/user/my documents');
+            // Now returns generic message instead of sanitized one
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
         });
 
         it('should NOT sanitize false positives like "JSON/XML"', () => {
@@ -243,13 +243,13 @@ describe('Error Handler Middleware', () => {
             );
         });
 
-        it('should sanitize paths in development for status errors', () => {
+        it('should return a generic message in development for status errors', () => {
             const err = { status: 418, message: 'Failed to load /etc/passwd' };
             errorHandler(err, req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(418);
             const errorMessage = res.json.mock.calls[0][0].error;
-            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
             expect(errorMessage).not.toContain('/etc/passwd');
         });
 
@@ -356,23 +356,23 @@ describe('Error Handler Middleware', () => {
             expect(res.json).toHaveBeenCalled();
         });
 
-        it('should sanitize single-level Windows paths like C:\\file.txt', () => {
+        it('should return a generic message for single-level Windows paths', () => {
             const err = { status: 418, message: 'Cannot read C:\\config.json' };
             errorHandler(err, req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(418);
             const errorMessage = res.json.mock.calls[0][0].error;
-            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
             expect(errorMessage).not.toContain('C:\\config.json');
         });
 
-        it('should sanitize Windows paths with Program Files', () => {
+        it('should return a generic message for Windows paths with Program Files', () => {
             const err = { status: 418, message: 'Error in C:\\Program Files\\app\\config.ini' };
             errorHandler(err, req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(418);
             const errorMessage = res.json.mock.calls[0][0].error;
-            expect(errorMessage).toContain('[PATH]');
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
             expect(errorMessage).not.toContain('Program Files');
         });
     });
@@ -382,36 +382,32 @@ describe('Error Handler Middleware', () => {
             process.env.NODE_ENV = 'production';
         });
 
-        it('should truncate very long error messages', () => {
+        it('should return a generic message for very long error messages', () => {
             // Use a message longer than default 200 chars without paths
             const longMessage = 'Error occurred: ' + 'x'.repeat(300);
             const err = { status: 418, message: longMessage };
             errorHandler(err, req, res, next);
 
             const errorMessage = res.json.mock.calls[0][0].error;
-            // Should be truncated (200 chars + '...')
-            expect(errorMessage.length).toBeLessThanOrEqual(203);
-            expect(errorMessage).toContain('...');
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
         });
 
-        it('should not truncate messages shorter than limit', () => {
+        it('should return a generic message for messages shorter than limit', () => {
             const shortMessage = 'Short error message';
             const err = { status: 418, message: shortMessage };
             errorHandler(err, req, res, next);
 
             const errorMessage = res.json.mock.calls[0][0].error;
-            expect(errorMessage).toBe(shortMessage);
-            expect(errorMessage).not.toContain('...');
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
         });
 
-        it('should handle exactly 200 char messages without truncation', () => {
+        it('should return a generic message for 200 char messages', () => {
             const exactMessage = 'x'.repeat(200);
             const err = { status: 418, message: exactMessage };
             errorHandler(err, req, res, next);
 
             const errorMessage = res.json.mock.calls[0][0].error;
-            expect(errorMessage).toBe(exactMessage);
-            expect(errorMessage.length).toBe(200);
+            expect(errorMessage).toBe('サーバーエラーが発生しました。しばらくしてから再試行してください。');
         });
     });
 });
