@@ -1,0 +1,78 @@
+{
+  "scan_started": "2025-11-26T00:00:00+09:00",
+  "total_files": 12,
+  "files": [
+    {
+      "path": "api/index.js",
+      "language": "javascript",
+      "type": "backend",
+      "lines": 93
+    },
+    {
+      "path": "api/config.js",
+      "language": "javascript",
+      "type": "config",
+      "lines": 30
+    },
+    {
+      "path": "api/middleware/errorHandler.js",
+      "language": "javascript",
+      "type": "backend",
+      "lines": 101
+    },
+    {
+      "path": "api/routes/ocr.js",
+      "language": "javascript",
+      "type": "backend",
+      "lines": 241
+    },
+    {
+      "path": "api/utils/gemini.js",
+      "language": "javascript",
+      "type": "backend",
+      "lines": 85
+    },
+    {
+      "path": "api/utils/network.js",
+      "language": "javascript",
+      "type": "backend",
+      "lines": 15
+    },
+    {
+      "path": "public/app.js",
+      "language": "javascript",
+      "type": "frontend",
+      "lines": 780
+    },
+    {
+      "path": "public/index.html",
+      "language": "html",
+      "type": "frontend",
+      "lines": 125
+    },
+    {
+      "path": "public/styles.css",
+      "language": "css",
+      "type": "frontend",
+      "lines": 0
+    },
+    {
+      "path": "package.json",
+      "language": "json",
+      "type": "config",
+      "lines": 40
+    },
+    {
+      "path": "vercel.json",
+      "language": "json",
+      "type": "config",
+      "lines": 28
+    },
+    {
+      "path": ".env.example",
+      "language": "dotenv",
+      "type": "config",
+      "lines": 8
+    }
+  ]
+}
