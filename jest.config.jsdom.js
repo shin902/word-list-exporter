@@ -6,6 +6,10 @@ module.exports = {
         '**/tests/unit/**/*.test.js',
         '**/tests/integration/migration.test.js'
     ],
+    testPathIgnorePatterns: [
+        "/node_modules/",
+        "/tests/unit/dos-protection.test.js"
+    ],
     setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
     collectCoverageFrom: [
         'public/app.js',

@@ -3,15 +3,21 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
+const { LRUCache } = require('lru-cache');
 const { performOCR } = require('../utils/gemini');
 const { getClientIp, sanitizeClientIp } = require('../utils/network');
 
 const router = express.Router();
 
+// 10,000エントリ上限（15分ウィンドウで約11 req/sec の新規IPレートに対応）
+// 想定メモリ使用量: ~1MB (10,000 entries * ~100 bytes/entry)
+const MAX_COUNTER_ENTRIES = 10000;
+
 // 不正リクエスト検出用カウンター（DoS攻撃の検出）
-const failedValidationCounter = new Map();
+const failedValidationCounter = new LRUCache({ max: MAX_COUNTER_ENTRIES });
 const FAILED_VALIDATION_THRESHOLD = 10; // 10回の失敗でアラート
 const COUNTER_RESET_INTERVAL = 15 * 60 * 1000; // 15分でリセット
+
 
 // タイマー管理
 let counterResetTimer = null;
@@ -256,7 +262,11 @@ router.post('/', strictLimiter, async (req, res, next) => {
 module.exports = router;
 module.exports.clearTimer = clearTimer;
 
-// テスト用にエクスポート
+// Export for testing purposes only
 if (process.env.NODE_ENV === 'test') {
     module.exports.sendValidationError = sendValidationError;
 }
+module.exports.trackFailedValidation = trackFailedValidation;
+module.exports.failedValidationCounter = failedValidationCounter;
+module.exports.MAX_COUNTER_ENTRIES = MAX_COUNTER_ENTRIES;
+module.exports.FAILED_VALIDATION_THRESHOLD = FAILED_VALIDATION_THRESHOLD;
