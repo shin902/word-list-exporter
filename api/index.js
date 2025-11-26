@@ -47,7 +47,7 @@ const allowedOrigin = process.env.FRONTEND_URL ||
 
 // 開発環境での情報表示
 if (process.env.NODE_ENV === 'development' && !process.env.FRONTEND_URL) {
-    console.log('INFO: Using default CORS origin http://localhost:5500. Set FRONTEND_URL to override.');
+    console.warn('WARNING: FRONTEND_URL is not set. Using default CORS origin http://localhost:5500. Set FRONTEND_URL in your .env file to override.');
 }
 
 // staging等の環境でFRONTEND_URLが未設定の場合の警告
