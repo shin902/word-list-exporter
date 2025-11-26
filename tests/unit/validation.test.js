@@ -321,6 +321,12 @@ describe('renderSubscriptSuperscript', () => {
         expect(container.childNodes[0].nodeType).toBe(Node.TEXT_NODE);
         expect(container.childNodes[1].nodeName).toBe('SPAN');
     });
+
+    test('truncates input exceeding 1000 characters', () => {
+        const longText = 'a'.repeat(1001);
+        renderSubscriptSuperscript(container, longText);
+        expect(container.textContent.length).toBeLessThanOrEqual(1000);
+    });
 });
 
 describe('debounce', () => {
