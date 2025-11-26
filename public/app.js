@@ -103,16 +103,23 @@ function loadCards() {
         // レガシーカード（IDがない）を移行
         let needsMigration = false;
         const migratedCards = parsed.map(card => {
-            if (!card) return card; // Handle null/undefined
-            if (!card.id) {
+            if (!card || typeof card !== 'object') return null; // Handle null/undefined and non-objects
+
+            // Prototype Pollution対策：安全なオブジェクトを作成
+            const safeCard = {
+                question: card.question,
+                answer: card.answer,
+                category: card.category,
+                id: card.id
+            };
+
+            // idがない場合は移行フラグを立てて生成
+            if (!safeCard.id) {
                 needsMigration = true;
-                return {
-                    ...card,
-                    id: generateUniqueId()
-                };
+                safeCard.id = generateUniqueId();
             }
-            return card;
-        });
+            return safeCard;
+        }).filter(Boolean); // nullになったエントリを削除
 
         // 移行が必要な場合は保存
         if (needsMigration) {
