@@ -280,6 +280,11 @@ function renderSubscriptSuperscript(container, text) {
     let match;
 
     while ((match = regex.exec(sanitizedText)) !== null) {
+        // ゼロ幅マッチでの無限ループを防止する
+        if (match[0].length === 0) {
+            regex.lastIndex++;
+            continue;
+        }
         const fullMatch = match[0];
         const matchIndex = match.index;
 

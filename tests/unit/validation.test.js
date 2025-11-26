@@ -259,7 +259,7 @@ describe('renderSubscriptSuperscript', () => {
         // 1秒以内に完了すること（ReDoSが発生していない証拠）
         expect(endTime - startTime).toBeLessThan(1000);
         // ^は単一文字として変換されるため、結果には<span>が含まれる
-        expect(container.innerHTML).toContain('<span class="superscript">{</span>');
+        expect(container.querySelector('.superscript').textContent).toBe('{');
     });
 
     test('handles empty string', () => {
@@ -290,6 +290,21 @@ describe('renderSubscriptSuperscript', () => {
         renderSubscriptSuperscript(container, '^{x^2}');
         // Should render "x^2" as superscript, not nested
         expect(container.innerHTML).toBe('<span class="superscript">x^2</span>');
+    });
+
+    test('handles unicode and emojis', () => {
+        renderSubscriptSuperscript(container, '^{😊}');
+        expect(container.innerHTML).toBe('<span class="superscript">😊</span>');
+    });
+
+    test('ignores caret/underscore followed by whitespace', () => {
+        renderSubscriptSuperscript(container, 'x^ y _ z');
+        expect(container.innerHTML).toBe('x^ y _ z');
+    });
+
+    test('handles adjacent patterns correctly', () => {
+        renderSubscriptSuperscript(container, 'x^2^3_1_2');
+        expect(container.innerHTML).toBe('x<span class="superscript">2</span><span class="superscript">3</span><span class="subscript">1</span><span class="subscript">2</span>');
     });
 });
 
