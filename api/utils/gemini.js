@@ -93,11 +93,13 @@ async function performOCR(base64Image) {
     try {
         const cards = JSON.parse(text);
         if (!Array.isArray(cards)) {
-            throw new Error('Response is not an array');
+            console.error('Gemini response is not an array:', text);
+            throw new Error('Invalid response format from Gemini API');
         }
         return cards; // Return array of {question, answer} objects directly
     } catch (e) {
-        throw new Error(`Failed to parse JSON response: ${e.message}`);
+        console.error('Failed to parse Gemini response:', e.message, text);
+        throw new Error('Invalid response format from Gemini API');
     }
 }
 
