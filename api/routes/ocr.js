@@ -255,3 +255,8 @@ router.post('/', strictLimiter, async (req, res, next) => {
 
 module.exports = router;
 module.exports.clearTimer = clearTimer;
+
+// テスト用にエクスポート
+if (process.env.NODE_ENV === 'test') {
+    module.exports.sendValidationError = sendValidationError;
+}
