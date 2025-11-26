@@ -62,18 +62,18 @@ describe('CORS Configuration', () => {
         expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5500');
     });
 
-    test('should log info message in development when using default CORS', async () => {
+    test('should log warning message in development when using default CORS', async () => {
         process.env.NODE_ENV = 'development';
         process.env.GEMINI_API_KEY = 'test-key';
 
         require('../../api/index');
 
-        // Filter out dotenv logs and check for our specific log message
-        const logCalls = consoleLogSpy.mock.calls.map(call => call[0]);
-        const hasInfoMessage = logCalls.some(msg => 
-            typeof msg === 'string' && msg.includes('INFO: Using default CORS origin')
+        // Check for our specific warning message
+        const warnCalls = consoleWarnSpy.mock.calls.map(call => call[0]);
+        const hasWarnMessage = warnCalls.some(msg =>
+            typeof msg === 'string' && msg.includes('WARNING: FRONTEND_URL is not set')
         );
-        expect(hasInfoMessage).toBe(true);
+        expect(hasWarnMessage).toBe(true);
     });
 
     test('should not log info message when FRONTEND_URL is set in development', async () => {
