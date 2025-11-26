@@ -11,7 +11,7 @@ const {
     escapeHtml,
     escapeHtmlAttr,
     generateUniqueId,
-    parseSubscriptSuperscript,
+    renderSubscriptSuperscript,
     debounce
 } = require('../../public/app');
 
@@ -183,75 +183,149 @@ describe('generateUniqueId', () => {
     });
 });
 
-describe('parseSubscriptSuperscript', () => {
+describe('renderSubscriptSuperscript', () => {
+    let container;
+
+    beforeEach(() => {
+        // 各テストの前にDOMコンテナを作成
+        container = document.createElement('div');
+        document.body.appendChild(container);
+    });
+
+    afterEach(() => {
+        // 各テストの後にコンテナをクリーンアップ
+        document.body.removeChild(container);
+        container = null;
+    });
+
     test('converts superscript with braces', () => {
         const input = 'x^{2}';
-        const result = parseSubscriptSuperscript(input);
-        expect(result).toContain('<span class="superscript">2</span>');
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('x<span class="superscript">2</span>');
     });
 
     test('converts single character superscript', () => {
         const input = 'x^2';
-        const result = parseSubscriptSuperscript(input);
-        expect(result).toContain('<span class="superscript">2</span>');
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('x<span class="superscript">2</span>');
     });
 
     test('converts subscript with braces', () => {
         const input = 'H_{2}O';
-        const result = parseSubscriptSuperscript(input);
-        expect(result).toContain('<span class="subscript">2</span>');
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('H<span class="subscript">2</span>O');
     });
 
     test('converts single character subscript', () => {
         const input = 'H_2O';
-        const result = parseSubscriptSuperscript(input);
-        expect(result).toContain('<span class="subscript">2</span>');
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('H<span class="subscript">2</span>O');
     });
 
-    test('escapes HTML before conversion (XSS prevention)', () => {
+    test('prevents XSS by using textContent', () => {
         const input = '<script>alert("XSS")</script>^2';
-        const result = parseSubscriptSuperscript(input);
-        expect(result).not.toContain('<script>');
-        expect(result).toContain('&lt;script&gt;');
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('&lt;script&gt;alert("XSS")&lt;/script&gt;<span class="superscript">2</span>');
+        expect(container.textContent).toBe('<script>alert("XSS")</script>2');
     });
 
     test('handles multiple superscripts and subscripts', () => {
         const input = 'x^2 + y^3 + H_2O';
-        const result = parseSubscriptSuperscript(input);
-        expect(result).toContain('<span class="superscript">2</span>');
-        expect(result).toContain('<span class="superscript">3</span>');
-        expect(result).toContain('<span class="subscript">2</span>');
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('x<span class="superscript">2</span> + y<span class="superscript">3</span> + H<span class="subscript">2</span>O');
     });
 
     test('limits brace content to 100 chars (ReDoS prevention)', () => {
-        // 101文字の場合、波括弧の正規表現にマッチしない
         const longText = 'a'.repeat(101);
         const input = `x^{${longText}}`;
-        const result = parseSubscriptSuperscript(input);
+        renderSubscriptSuperscript(container, input);
         // 100文字を超えるため、波括弧パターンは変換されないが、^は単一文字として変換される
-        expect(result).toContain('<span class="superscript">{</span>');
-        expect(result).toContain(longText);
+        expect(container.innerHTML).toBe('x<span class="superscript">{</span>' + longText + '}');
     });
 
     test('converts brace content up to 100 chars', () => {
-        // 100文字の場合、正常に変換される
         const longText = 'a'.repeat(100);
         const input = `x^{${longText}}`;
-        const result = parseSubscriptSuperscript(input);
+        renderSubscriptSuperscript(container, input);
         // 100文字以内なので変換される
-        expect(result).toContain(`<span class="superscript">${longText}</span>`);
+        expect(container.innerHTML).toBe(`x<span class="superscript">${longText}</span>`);
     });
 
     test('prevents ReDoS with unclosed braces', () => {
-        // 閉じ括弧がない場合でもタイムアウトしない
         const malicious = 'x^{' + 'a'.repeat(1000);
         const startTime = Date.now();
-        const result = parseSubscriptSuperscript(malicious);
+        renderSubscriptSuperscript(container, malicious);
         const endTime = Date.now();
         // 1秒以内に完了すること（ReDoSが発生していない証拠）
         expect(endTime - startTime).toBeLessThan(1000);
         // ^は単一文字として変換されるため、結果には<span>が含まれる
-        expect(result).toContain('<span class="superscript">{</span>');
+        expect(container.querySelector('.superscript').textContent).toBe('{');
+    });
+
+    test('handles empty string', () => {
+        renderSubscriptSuperscript(container, '');
+        expect(container.innerHTML).toBe('');
+    });
+
+    test('handles text with no special characters', () => {
+        const input = 'ただのテキスト';
+        renderSubscriptSuperscript(container, input);
+        expect(container.innerHTML).toBe('ただのテキスト');
+    });
+
+    test('handles null container gracefully', () => {
+        // console.warnをスパイして、エラーが出ないことを確認
+        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(() => renderSubscriptSuperscript(null, 'x^2')).not.toThrow();
+        expect(consoleWarnSpy).toHaveBeenCalledWith('renderSubscriptSuperscriptに無効なコンテナが渡されました。');
+        consoleWarnSpy.mockRestore();
+    });
+
+    test('handles undefined text', () => {
+        renderSubscriptSuperscript(container, undefined);
+        expect(container.innerHTML).toBe('');
+    });
+
+    test('does not nest patterns', () => {
+        renderSubscriptSuperscript(container, '^{x^2}');
+        // Should render "x^2" as superscript, not nested
+        expect(container.innerHTML).toBe('<span class="superscript">x^2</span>');
+    });
+
+    test('handles unicode and emojis', () => {
+        renderSubscriptSuperscript(container, '^{😊}');
+        expect(container.innerHTML).toBe('<span class="superscript">😊</span>');
+    });
+
+    test('ignores caret/underscore followed by whitespace', () => {
+        renderSubscriptSuperscript(container, 'x^ y _ z');
+        expect(container.innerHTML).toBe('x^ y _ z');
+    });
+
+    test('handles adjacent patterns correctly', () => {
+        renderSubscriptSuperscript(container, 'x^2^3_1_2');
+        expect(container.innerHTML).toBe('x<span class="superscript">2</span><span class="superscript">3</span><span class="subscript">1</span><span class="subscript">2</span>');
+    });
+
+    test('handles very long text efficiently', () => {
+        const longText = 'x^2 '.repeat(1000);
+        const start = Date.now();
+        renderSubscriptSuperscript(container, longText);
+        const duration = Date.now() - start;
+        expect(duration).toBeLessThan(1000); // Should complete within 1 second
+    });
+
+    test('creates correct DOM structure', () => {
+        renderSubscriptSuperscript(container, 'x^2');
+        expect(container.childNodes.length).toBe(2);
+        expect(container.childNodes[0].nodeType).toBe(Node.TEXT_NODE);
+        expect(container.childNodes[1].nodeName).toBe('SPAN');
+    });
+
+    test('truncates input exceeding 1000 characters', () => {
+        const longText = 'a'.repeat(1001);
+        renderSubscriptSuperscript(container, longText);
+        expect(container.textContent.length).toBeLessThanOrEqual(1000);
     });
 });
 
