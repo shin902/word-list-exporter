@@ -4,6 +4,7 @@ const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
 const { performOCR } = require('../utils/gemini');
+const { sanitizeClientIp } = require('../utils/network');
 
 const router = express.Router();
 
@@ -147,17 +148,6 @@ function trackFailedValidation(ip) {
 }
 
 /**
- * clientIPのサニタイズ（ログインジェクション対策）
- * @param {string} ip - サニタイズするIPアドレス
- * @returns {string} - サニタイズされたIPアドレス
- */
-function sanitizeClientIp(ip) {
-    if (!ip || typeof ip !== 'string') return 'unknown';
-    // 改行文字とキャリッジリターンを除去
-    return ip.replace(/[\r\n]/g, '').substring(0, 45); // IPv6最大長 + 余裕
-}
-
-/**
  * バリデーションエラーを送信するヘルパー関数
  * errorIdを含めることで、クライアントエラーとサーバーログの相関を可能にする
  * trackFailedValidationを統合してログ重複を防止
@@ -236,6 +226,22 @@ router.post('/', strictLimiter, async (req, res, next) => {
             if ((dataWithoutPadding + paddingLength) % 4 !== 0) {
                 return sendValidationError(res, 400, '無効なBase64形式です', clientIp);
             }
+        }
+
+        // Base64デコード検証
+        try {
+            const decodedData = Buffer.from(cleanedBase64Data, 'base64');
+            // Buffer.fromは無効な文字を無視するため、デコード後のデータが空でないか、
+            // 元のデータが非ASCII文字のみで構成されていないかも確認する
+            if (decodedData.length === 0 && cleanedBase64Data.length > 0) {
+                 // 空の文字列が有効なケースもあるため、追加のチェックを行う
+                const nonAsciiRegex = /[^\x00-\x7F]/;
+                if (!nonAsciiRegex.test(cleanedBase64Data)) {
+                    throw new Error('Invalid Base64 string resulted in empty buffer');
+                }
+            }
+        } catch (e) {
+            return sendValidationError(res, 400, '無効なBase64形式です (デコード失敗)', clientIp);
         }
 
         // OCR実行 (クリーンアップされたBase64データを使用)

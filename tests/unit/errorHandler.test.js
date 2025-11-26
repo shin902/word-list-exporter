@@ -14,7 +14,6 @@ describe('Error Handler Middleware', () => {
         };
         next = jest.fn();
         jest.spyOn(console, 'error').mockImplementation(() => {});
-        jest.clearAllMocks(); // Restore this to reset mocks between tests
     });
 
     afterEach(() => {
@@ -46,5 +45,44 @@ describe('Error Handler Middleware', () => {
         expect(res403.json).toHaveBeenCalledWith(expect.objectContaining({
             error: 'サーバーの設定エラーです。管理者に連絡してください。'
         }));
+    });
+
+    it('should handle null or undefined error object', () => {
+        errorHandler(null, req, res, next);
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            error: '不明なエラーが発生しました。'
+        }));
+    });
+
+    it('should handle an error with status 429', () => {
+        const err = new Error('Too many requests');
+        err.status = 429;
+        errorHandler(err, req, res, next);
+        expect(res.status).toHaveBeenCalledWith(429);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            error: 'リクエストが多すぎます。しばらくしてから再試行してください。'
+        }));
+    });
+
+    it('should handle various other HTTP status codes', () => {
+        const statusMessages = {
+            401: '認証が必要です。',
+            403: 'アクセスが拒否されました。',
+            404: 'リソースが見つかりません。',
+            502: 'ゲートウェイエラーが発生しました。',
+            503: 'サービスが一時的に利用できません。'
+        };
+
+        Object.entries(statusMessages).forEach(([code, message]) => {
+            const err = new Error(`HTTP error ${code}`);
+            err.status = Number(code);
+            const mockRes = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+            errorHandler(err, req, mockRes, next);
+            expect(mockRes.status).toHaveBeenCalledWith(Number(code));
+            expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+                error: message
+            }));
+        });
     });
 });

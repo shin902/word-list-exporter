@@ -6,6 +6,7 @@ require('./config');
 
 const ocrRouter = require('./routes/ocr');
 const errorHandler = require('./middleware/errorHandler');
+const { sanitizeClientIp } = require('./utils/network');
 
 const app = express();
 
@@ -58,12 +59,13 @@ app.use(express.json({ limit: '1.5mb' }));
 // body-parserによってスローされるエラーを専門に処理するミドルウェア。
 // express.json()の直後、かつルートハンドラの前に配置する必要があります。
 app.use((err, req, res, next) => {
+    const clientIp = sanitizeClientIp(req.ip);
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-        console.error(`Invalid JSON in request body from IP: ${req.ip}`, { error: err.message });
+        console.error(`Invalid JSON in request body from IP: ${clientIp}`, { error: err.message });
         return res.status(400).json({ error: 'リクエストのJSON形式が正しくありません。' });
     }
     if (err && err.type === 'entity.too.large') {
-        console.error(`Request entity too large from IP: ${req.ip}`, { size: req.headers['content-length'] });
+        console.error(`Request entity too large from IP: ${clientIp}`, { size: req.headers['content-length'] });
         return res.status(413).json({ error: 'リクエストのペイロードが大きすぎます。' });
     }
     next(err);
