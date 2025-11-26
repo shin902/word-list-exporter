@@ -8,6 +8,22 @@ const { TextEncoder, TextDecoder } = require('util');
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
+// Mock console methods to suppress output during tests
+// but still allow tests to verify console method calls
+global.console = {
+    ...console,
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+};
+
+// Clear console mock calls before each test
+beforeEach(() => {
+    jest.clearAllMocks();
+});
+
 // Mock localStorage for testing
 const localStorageMock = (() => {
     let store = {};
