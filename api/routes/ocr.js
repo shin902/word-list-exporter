@@ -52,23 +52,39 @@ function clearTimer() {
     }
 }
 
+/**
+ * Redis クライアントを切断
+ * テストのクリーンアップ用
+ */
+async function closeRedisClient() {
+    if (redisClient) {
+        await redisClient.quit();
+        redisClient = null;
+    }
+}
+
 // タイマーを初期化
 initializeTimer();
 
 // Redisクライアントの初期化（環境変数が設定されている場合）
 const redisUrl = process.env.KV_URL || process.env.REDIS_URL;
 let store;
+let redisClient = null;
 
-if (process.env.NODE_ENV === 'production' && !redisUrl) {
+// Jest テスト環境を検出（NODE_ENV が 'test' でなくても Jest で実行されている場合を考慮）
+const isJestEnvironment = typeof jest !== 'undefined' || process.env.JEST_WORKER_ID !== undefined;
+
+if (process.env.NODE_ENV === 'production' && !redisUrl && !isJestEnvironment) {
     throw new Error('FATAL: Redis (KV_URL or REDIS_URL) must be configured in production for rate limiting to work correctly in serverless environment.');
 }
 
-if (redisUrl) {
-    const client = new Redis(redisUrl);
+// テスト環境では Redis クライアントを作成しない（ハンドルリーク防止）
+if (redisUrl && !isJestEnvironment) {
+    redisClient = new Redis(redisUrl);
     store = new RedisStore({
-        sendCommand: (...args) => client.call(...args),
+        sendCommand: (...args) => redisClient.call(...args),
     });
-} else {
+} else if (!redisUrl && !isJestEnvironment) {
     console.warn('WARNING: Redis is not configured. Rate limiting will be ineffective in serverless environments.');
 }
 
@@ -261,6 +277,7 @@ router.post('/', strictLimiter, async (req, res, next) => {
 
 module.exports = router;
 module.exports.clearTimer = clearTimer;
+module.exports.closeRedisClient = closeRedisClient;
 
 // Export for testing purposes only
 if (process.env.NODE_ENV === 'test') {
