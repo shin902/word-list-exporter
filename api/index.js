@@ -81,6 +81,31 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
+// 全レスポンスに X-Robots-Tag ヘッダーを付与してインデックス化を防止
+app.use((req, res, next) => {
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    next();
+});
+
+// 検索エンジンのリファラー経由の流入をブロックする (Referer がある場合のみ)
+// 参考: Google, Bing, Yahoo, DuckDuckGo, Baidu, Yandex など
+app.use((req, res, next) => {
+    try {
+        const referer = (req.get('referer') || '').toLowerCase();
+        if (referer) {
+            const searchHostPattern = /(^|https?:\/\/|\.)((google|bing|yandex|duckduckgo|baidu|yahoo)\.|search\.)/i;
+            if (searchHostPattern.test(referer)) {
+                // ロギングは情報漏洩に注意して最小限に
+                console.info(`Blocked request with search-engine referer: ${referer}`);
+                return res.status(403).json({ error: '検索エンジン経由のアクセスは許可されていません。' });
+            }
+        }
+    } catch (e) {
+        // 万が一のパースエラーは無視して通常処理へ
+    }
+    next();
+});
+
 // 静的ファイルの配信（ローカル開発用）
 app.use(express.static(path.join(__dirname, '../public')));
 
