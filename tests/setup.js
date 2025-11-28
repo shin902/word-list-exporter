@@ -5,6 +5,20 @@
 require('./utils/crypto-polyfill');
 const { TextEncoder, TextDecoder } = require('util');
 
+// テスト中のconsole出力を抑制（テストアサーションは維持）
+global.console = {
+    ...console,
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+};
+
+beforeEach(() => {
+    jest.clearAllMocks();
+});
+
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
