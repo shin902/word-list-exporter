@@ -6,17 +6,17 @@ require('./utils/crypto-polyfill');
 const { TextEncoder, TextDecoder } = require('util');
 
 // テスト中のconsole出力を抑制（テストアサーションは維持）
-global.console = {
-    ...console,
-    log: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn(),
-};
-
+// jest.spyOn()を使用して既存のテストスパイとの互換性を確保
 beforeEach(() => {
-    jest.clearAllMocks();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+});
+
+afterEach(() => {
+    jest.restoreAllMocks();
 });
 
 global.TextEncoder = TextEncoder;
