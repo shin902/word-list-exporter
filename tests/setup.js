@@ -5,14 +5,18 @@
 require('./utils/crypto-polyfill');
 const { TextEncoder, TextDecoder } = require('util');
 
+// Suppress console output during tests (test assertions are preserved)
 // テスト中のconsole出力を抑制（テストアサーションは維持）
-// jest.spyOn()を使用して既存のテストスパイとの互換性を確保
+// Use jest.spyOn() to maintain compatibility with existing test spies
+// To enable console output for debugging, run: DEBUG=1 npm test
 beforeEach(() => {
-    jest.spyOn(console, 'log').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    jest.spyOn(console, 'info').mockImplementation(() => {});
-    jest.spyOn(console, 'debug').mockImplementation(() => {});
+    if (!process.env.DEBUG) {
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        jest.spyOn(console, 'info').mockImplementation(() => {});
+        jest.spyOn(console, 'debug').mockImplementation(() => {});
+    }
 });
 
 afterEach(() => {
