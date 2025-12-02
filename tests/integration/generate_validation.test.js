@@ -2,14 +2,14 @@
  * @jest-environment node
  */
 jest.mock('../../api/utils/gemini', () => ({
-    performOCR: jest.fn().mockResolvedValue([])
+    generateCards: jest.fn().mockResolvedValue([])
 }));
 
 const request = require('supertest');
 const app = require('../../api/index');
 const gemini = require('../../api/utils/gemini');
 
-describe('OCR Validation Integration Tests', () => {
+describe('Generate Cards Validation Integration Tests', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -20,23 +20,23 @@ describe('OCR Validation Integration Tests', () => {
             const invalidBase64 = "ThisIsNotValidBase64!!!@@@###";
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${invalidBase64}` });
 
             expect(res.status).toBe(400);
             expect(res.body.error).toBe('無効なBase64形式です');
-            expect(gemini.performOCR).not.toHaveBeenCalled();
+            expect(gemini.generateCards).not.toHaveBeenCalled();
         });
 
         it('should accept valid Base64 string "SGVsbG8=" (Hello)', async () => {
             const validBase64 = "SGVsbG8=";
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${validBase64}` });
 
             expect(res.status).toBe(200);
-            expect(gemini.performOCR).toHaveBeenCalled();
+            expect(gemini.generateCards).toHaveBeenCalled();
         });
 
         it('should handle whitespace by ignoring it (logic in code)', async () => {
@@ -45,11 +45,11 @@ describe('OCR Validation Integration Tests', () => {
             const base64WithSpace = "SGV\nsbG\t8=";
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${base64WithSpace}` });
 
             expect(res.status).toBe(200);
-            expect(gemini.performOCR).toHaveBeenCalled();
+            expect(gemini.generateCards).toHaveBeenCalled();
         });
 
         it('should accept all Base64 special characters (+, /)', async () => {
@@ -57,11 +57,11 @@ describe('OCR Validation Integration Tests', () => {
             const base64Special = "QmFzZTY0Ky8="; // "Base64+/"
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${base64Special}` });
 
             expect(res.status).toBe(200);
-            expect(gemini.performOCR).toHaveBeenCalled();
+            expect(gemini.generateCards).toHaveBeenCalled();
         });
 
         it('should accept empty Base64 string (though logic might fail later or acceptable)', async () => {
@@ -69,7 +69,7 @@ describe('OCR Validation Integration Tests', () => {
             const emptyBase64 = "";
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${emptyBase64}` });
 
             expect(res.status).toBe(400);
@@ -83,7 +83,7 @@ describe('OCR Validation Integration Tests', () => {
             const whitespaceBase64 = "   \n  \t  ";
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${whitespaceBase64}` });
 
             expect(res.status).toBe(400);
@@ -97,17 +97,17 @@ describe('OCR Validation Integration Tests', () => {
             const largeBase64 = 'a'.repeat(0.8 * 1024 * 1024);
 
             const res = await request(app)
-                .post('/api/ocr')
+                .post('/api/generate')
                 .send({ image: `data:image/jpeg;base64,${largeBase64}` });
 
             expect(res.status).toBe(200);
-            expect(gemini.performOCR).toHaveBeenCalled();
+            expect(gemini.generateCards).toHaveBeenCalled();
         }, 10000); // Increase timeout for large payload
     });
 
     it('should reject invalid Base64 data', async () => {
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,Invalid!!!@@@###' });
         expect(response.status).toBe(400);
         expect(response.body.error).toBeTruthy();
@@ -115,7 +115,7 @@ describe('OCR Validation Integration Tests', () => {
 
     afterAll(() => {
         // Clean up timer to prevent "worker has failed to exit gracefully" warning
-        const { clearTimer } = require('../../api/routes/ocr');
+        const { clearTimer } = require('../../api/routes/generate');
         if (typeof clearTimer === 'function') {
             clearTimer();
         }

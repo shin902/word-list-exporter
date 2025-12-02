@@ -27,7 +27,7 @@ describe('VULN-008 Reproduction: Rate Limit Bypass in Serverless', () => {
         delete process.env.REDIS_URL;
 
         expect(() => {
-             require('../api/routes/ocr');
+             require('../api/routes/generate');
         }).toThrow(/Redis.*configured|Redis.*設定が必須/);
         // Accepts either the English error from ocr.js or Japanese error from config.js
     });
@@ -44,7 +44,7 @@ describe('VULN-008 Reproduction: Rate Limit Bypass in Serverless', () => {
          const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
          try {
-             require('../api/routes/ocr');
+             require('../api/routes/generate');
              // In Jest environment, warning is suppressed to prevent Redis connection issues
              // The warning would be logged in non-Jest development environments without Redis
              // This test verifies the module loads successfully without Redis in development

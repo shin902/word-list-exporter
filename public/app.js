@@ -815,7 +815,7 @@ if (typeof document !== 'undefined') {
 
                 // OCRで文字認識（JSON配列として取得）
                 updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
-                const cardsData = await performOCR(resizedCanvas);
+                const cardsData = await generateCardsFromImage(resizedCanvas);
 
                 // カテゴリを追加してカードを作成
                 updateImportStatus('カードを作成中...');
@@ -944,19 +944,19 @@ function extractRedText(img) {
 }
 
 /**
- * OCRで文字認識（Gemini Vision API使用）
- * @param {HTMLCanvasElement} canvas - OCR対象のキャンバス
- * @returns {Promise<string>} 抽出されたテキスト
+ * 画像からカードを生成（Gemini Vision API使用）
+ * @param {HTMLCanvasElement} canvas - 対象のキャンバス
+ * @returns {Promise<Array>} 生成されたカード配列
  * @throws {Error} APIキー未設定、ネットワークエラー、APIエラー
  */
-async function performOCR(canvas) {
+async function generateCardsFromImage(canvas) {
     // キャンバスをbase64エンコード
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
 
     // バックエンドAPIにリクエスト
     updateImportStatus('画像を解析中...');
 
-    const response = await fetch('/api/ocr', {
+    const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -966,16 +966,16 @@ async function performOCR(canvas) {
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'OCR処理に失敗しました');
+        throw new Error(error.error || 'カード生成に失敗しました');
     }
 
     const data = await response.json();
 
-    if (data.text === 'NONE') {
+    if (!data.cards || data.cards.length === 0) {
         throw new Error('赤字のテキストが見つかりませんでした');
     }
 
-    return data.text;
+    return data.cards;
 }
 
 /**
@@ -1180,7 +1180,7 @@ if (typeof module !== 'undefined' && module.exports) {
         sanitizeInput,
         renderSubscriptSuperscript,
         debounce,
-        performOCR,
+        generateCardsFromImage,
         shuffleCards,
         secureRandom,
         secureRandomInt

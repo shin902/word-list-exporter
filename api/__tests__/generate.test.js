@@ -6,19 +6,19 @@ const app = require('../index');
 
 // Mock the gemini utils
 jest.mock('../utils/gemini', () => ({
-    performOCR: jest.fn()
+    generateCards: jest.fn()
 }));
 
-const { performOCR } = require('../utils/gemini');
+const { generateCards } = require('../utils/gemini');
 
-describe('POST /api/ocr', () => {
+describe('POST /api/generate', () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
     afterAll(() => {
         // Clean up timer to prevent "worker has failed to exit gracefully" warning
-        const { clearTimer } = require('../routes/ocr');
+        const { clearTimer } = require('../routes/generate');
         if (typeof clearTimer === 'function') {
             clearTimer();
         }
@@ -26,7 +26,7 @@ describe('POST /api/ocr', () => {
 
     it('should return error when no image provided', async () => {
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({});
 
         expect(response.status).toBe(400);
@@ -35,7 +35,7 @@ describe('POST /api/ocr', () => {
 
     it('should return error for invalid image format', async () => {
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'invalid' });
 
         expect(response.status).toBe(400);
@@ -44,102 +44,89 @@ describe('POST /api/ocr', () => {
 
     it('should return error when base64 data is missing', async () => {
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg,' }); // Empty data
 
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('画像データの解析に失敗しました');
     });
 
-    // Note: Strict base64 validation was removed to prevent ReDoS attacks on large payloads
-    // It now relies on performOCR or decoding to handle invalid data
-    /*
-    it('should return error for invalid base64 characters', async () => {
-        const response = await request(app)
-            .post('/api/ocr')
-            .send({ image: 'data:image/jpeg;base64,invalid@base64' });
-
-        expect(response.status).toBe(400);
-        expect(response.body.error).toBe('無効なBase64データです');
-    });
-    */
-
     it('should accept base64 data with spaces (RFC 4648 compliant)', async () => {
-        const mockText = '問題:答え';
-        performOCR.mockResolvedValue(mockText);
+        const mockCards = [{ question: 'Q', answer: 'A' }];
+        generateCards.mockResolvedValue(mockCards);
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,valid base64 data' });
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
-        expect(response.body.text).toBe(mockText);
-        // Verify whitespace is stripped before calling performOCR
-        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+        expect(response.body.cards).toEqual(mockCards);
+        // Verify whitespace is stripped before calling generateCards
+        expect(generateCards).toHaveBeenCalledWith('validbase64data');
     });
 
     it('should accept base64 data with newlines', async () => {
-        const mockText = '問題:答え';
-        performOCR.mockResolvedValue(mockText);
+        const mockCards = [{ question: 'Q', answer: 'A' }];
+        generateCards.mockResolvedValue(mockCards);
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,valid\nbase64\ndata' });
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
-        expect(response.body.text).toBe(mockText);
-        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+        expect(response.body.cards).toEqual(mockCards);
+        expect(generateCards).toHaveBeenCalledWith('validbase64data');
     });
 
     it('should accept base64 data with tabs', async () => {
-        const mockText = '問題:答え';
-        performOCR.mockResolvedValue(mockText);
+        const mockCards = [{ question: 'Q', answer: 'A' }];
+        generateCards.mockResolvedValue(mockCards);
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,valid\tbase64\tdata' });
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
-        expect(response.body.text).toBe(mockText);
-        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+        expect(response.body.cards).toEqual(mockCards);
+        expect(generateCards).toHaveBeenCalledWith('validbase64data');
     });
 
     it('should accept base64 data with mixed whitespace', async () => {
-        const mockText = '問題:答え';
-        performOCR.mockResolvedValue(mockText);
+        const mockCards = [{ question: 'Q', answer: 'A' }];
+        generateCards.mockResolvedValue(mockCards);
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,valid \n\tbase64 \r\ndata' });
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
-        expect(response.body.text).toBe(mockText);
-        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+        expect(response.body.cards).toEqual(mockCards);
+        expect(generateCards).toHaveBeenCalledWith('validbase64data');
     });
 
-    it('should return success with text when OCR is successful', async () => {
-        const mockText = '問題:答え';
-        performOCR.mockResolvedValue(mockText);
+    it('should return success with cards when generation is successful', async () => {
+        const mockCards = [{ question: 'Q', answer: 'A' }];
+        generateCards.mockResolvedValue(mockCards);
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,validbase64data' });
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
-        expect(response.body.text).toBe(mockText);
-        expect(performOCR).toHaveBeenCalledWith('validbase64data');
+        expect(response.body.cards).toEqual(mockCards);
+        expect(generateCards).toHaveBeenCalledWith('validbase64data');
     });
 
-    it('should handle errors from performOCR', async () => {
-        performOCR.mockRejectedValue(new Error('Gemini API error'));
+    it('should handle errors from generateCards', async () => {
+        generateCards.mockRejectedValue(new Error('Gemini API error'));
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: 'data:image/jpeg;base64,validbase64data' });
 
         expect(response.status).toBe(500);

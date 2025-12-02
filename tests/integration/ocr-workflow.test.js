@@ -2,46 +2,15 @@
  * @jest-environment jsdom
  */
 /**
- * Integration tests for OCR workflow
+ * Integration tests for Generate Cards workflow
  * Tests the complete flow from image selection to card creation
  */
 
 const {
-    parseTextToCards,
-    // performOCR is not exported by app.js.
-    // app.js defines performOCR for frontend, but it calls fetch('/api/ocr').
-    // The test seems to assume performOCR is available globally or calls the client-side function.
-    // However, in app.js, performOCR is defined as:
-    /*
-    async function performOCR(canvas) {
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        const response = await fetch('/api/ocr', ...);
-        ...
-    }
-    */
-    // It does NOT call Gemini API directly from client anymore in the current implementation (it calls backend).
-    // The test code mocks `fetch` to return Gemini API structure (`candidates`, etc.), which suggests the test expects `performOCR` to call Gemini directly OR the backend to return that structure.
-    // BUT, `api/routes/ocr.js` returns:
-    /*
-    res.json({
-        success: true,
-        text: result
-    });
-    */
-    // And `performOCR` in `app.js` parses that:
-    /*
-    const data = await response.json();
-    return data.text;
-    */
-    // So the test is mocking the WRONG response structure if it's testing the client-side `performOCR`.
-    // The test is mocking `fetch` to return Gemini structure, but `performOCR` calls `/api/ocr`.
-    // AND `performOCR` is not exported in my previous `app.js` edit.
-    // I need to export `performOCR` from `app.js`.
-    // AND I need to fix the test expectations to match what `performOCR` expects from `/api/ocr`.
-    performOCR
+    generateCardsFromImage
 } = require('../../public/app');
 
-describe('OCR Workflow Integration', () => {
+describe('Generate Cards Workflow Integration', () => {
     let mockFetch;
 
     beforeEach(() => {
@@ -64,13 +33,19 @@ describe('OCR Workflow Integration', () => {
         jest.restoreAllMocks();
     });
 
-    describe('Successful OCR Flow', () => {
+    describe('Successful Generation Flow', () => {
         test('processes image and creates cards from API response', async () => {
             // Setup
-            // performOCR calls /api/ocr, which returns { success: true, text: '...' }
+            // generateCardsFromImage calls /api/generate, which returns { success: true, cards: [...] }
+            const mockCards = [
+                { question: 'apple', answer: 'りんご' },
+                { question: 'banana', answer: 'バナナ' },
+                { question: 'orange', answer: 'オレンジ' }
+            ];
+
             const mockResponse = {
                 success: true,
-                text: 'apple→りんご\nbanana→バナナ\norange→オレンジ'
+                cards: mockCards
             };
 
             mockFetch.mockResolvedValueOnce({
@@ -84,43 +59,16 @@ describe('OCR Workflow Integration', () => {
             canvas.height = 100;
 
             // Execute
-            const text = await performOCR(canvas);
-            const cards = parseTextToCards(text);
+            const cards = await generateCardsFromImage(canvas);
 
             // Verify
-            expect(text).toBe('apple→りんご\nbanana→バナナ\norange→オレンジ');
             expect(cards.length).toBe(3);
             expect(cards[0].question).toBe('apple');
             expect(cards[0].answer).toBe('りんご');
-            expect(cards[0].id).toBeDefined();
-            expect(cards[0].category).toBe('英単語');
-        });
-
-        test('handles multiple text formats in single OCR response', async () => {
-            const mockResponse = {
-                success: true,
-                text: 'apple→りんご\nbanana バナナ\norange:オレンジ\ngrape-ぶどう'
-            };
-
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => mockResponse
-            });
-
-            const canvas = document.createElement('canvas');
-            const text = await performOCR(canvas);
-            const cards = parseTextToCards(text);
-
-            expect(cards.length).toBe(4);
-            expect(cards.map(c => c.question)).toEqual(['apple', 'banana', 'orange', 'grape']);
         });
     });
 
     describe('Error Handling', () => {
-        // Note: performOCR in app.js does NOT check for GEMINI_API_KEY anymore because it delegates to backend.
-        // So tests checking for "Gemini API Keyが設定されていません" are invalid for the current client-side code.
-        // I will remove authentication tests that assume client-side key handling.
-
         test('handles backend error (400/500)', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
@@ -130,18 +78,18 @@ describe('OCR Workflow Integration', () => {
 
             const canvas = document.createElement('canvas');
 
-            await expect(performOCR(canvas)).rejects.toThrow('Invalid image');
+            await expect(generateCardsFromImage(canvas)).rejects.toThrow('Invalid image');
         });
 
-        test('handles "NONE" response', async () => {
+        test('handles empty response (no cards)', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ text: 'NONE' })
+                json: async () => ({ cards: [] })
             });
 
             const canvas = document.createElement('canvas');
 
-            await expect(performOCR(canvas)).rejects.toThrow('赤字のテキストが見つかりませんでした');
+            await expect(generateCardsFromImage(canvas)).rejects.toThrow('赤字のテキストが見つかりませんでした');
         });
 
         test('handles network error', async () => {
@@ -149,7 +97,7 @@ describe('OCR Workflow Integration', () => {
 
             const canvas = document.createElement('canvas');
 
-            await expect(performOCR(canvas)).rejects.toThrow('Network error');
+            await expect(generateCardsFromImage(canvas)).rejects.toThrow('Network error');
         });
     });
 
@@ -157,14 +105,14 @@ describe('OCR Workflow Integration', () => {
         test('sends correct headers', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ success: true, text: 'test' })
+                json: async () => ({ success: true, cards: [{ question: 'test', answer: 'test' }] })
             });
 
             const canvas = document.createElement('canvas');
-            await performOCR(canvas);
+            await generateCardsFromImage(canvas);
 
             expect(mockFetch).toHaveBeenCalledWith(
-                '/api/ocr',
+                '/api/generate',
                 expect.objectContaining({
                     method: 'POST',
                     headers: {
@@ -177,11 +125,11 @@ describe('OCR Workflow Integration', () => {
         test('sends base64 encoded image in body', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ success: true, text: 'test' })
+                json: async () => ({ success: true, cards: [{ question: 'test', answer: 'test' }] })
             });
 
             const canvas = document.createElement('canvas');
-            await performOCR(canvas);
+            await generateCardsFromImage(canvas);
 
             const callArgs = mockFetch.mock.calls[0][1];
             const body = JSON.parse(callArgs.body);

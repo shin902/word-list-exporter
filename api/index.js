@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 require('./config');
 
-const ocrRouter = require('./routes/ocr');
+const generateRouter = require('./routes/generate');
 const errorHandler = require('./middleware/errorHandler');
 const { sanitizeClientIp } = require('./utils/network');
 
@@ -110,7 +110,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ルート
-app.use('/api/ocr', ocrRouter);
+app.use('/api/generate', generateRouter);
 
 // ヘルスチェック
 app.get('/api/health', (req, res) => {

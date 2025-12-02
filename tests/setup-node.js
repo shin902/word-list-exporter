@@ -33,14 +33,14 @@ afterEach(() => {
     jest.restoreAllMocks();
 });
 
-// Cleanup OCR timer after all tests to prevent "worker has failed to exit gracefully" warning
+// Cleanup Generate timer after all tests to prevent "worker has failed to exit gracefully" warning
 afterAll(() => {
     try {
-        const { clearTimer } = require('../api/routes/ocr');
+        const { clearTimer } = require('../api/routes/generate');
         if (typeof clearTimer === 'function') {
             clearTimer();
         }
     } catch (e) {
-        // Ignore if OCR module is not loaded
+        // Ignore if Generate module is not loaded
     }
 });

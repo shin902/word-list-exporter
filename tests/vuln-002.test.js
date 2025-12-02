@@ -6,7 +6,7 @@ const app = require('../api/index');
 
 // Mock the Gemini API utils
 jest.mock('../api/utils/gemini', () => ({
-    performOCR: jest.fn().mockResolvedValue('Mocked OCR Result')
+    generateCards: jest.fn().mockResolvedValue([])
 }));
 
 describe('Vuln-002: Large Payload DoS', () => {
@@ -23,7 +23,7 @@ describe('Vuln-002: Large Payload DoS', () => {
         const base64Payload = Buffer.from(payload).toString('base64');
 
         const res = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: `data:image/png;base64,${base64Payload}` });
 
         // Should be success since we mocked OCR and size is okay
@@ -36,7 +36,7 @@ describe('Vuln-002: Large Payload DoS', () => {
         const base64Payload = Buffer.from(payload).toString('base64');
 
         const res = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send({ image: `data:image/png;base64,${base64Payload}` });
 
         // Now should be rejected with 413
