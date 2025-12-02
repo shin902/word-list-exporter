@@ -4,7 +4,7 @@ const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
 const { LRUCache } = require('lru-cache');
-const { performOCR } = require('../utils/gemini');
+const { generateCards } = require('../utils/gemini');
 const { getClientIp, sanitizeClientIp } = require('../utils/network');
 
 const router = express.Router();
@@ -90,7 +90,7 @@ if (redisUrl && !isJestEnvironment) {
 
 // レート制限の設定
 // Redisが設定されている場合は外部ストアを使用し、標準的な制限を適用
-// OCRエンドポイントはより厳格な制限（20リクエスト/時間）を適用
+// 生成エンドポイントはより厳格な制限（20リクエスト/時間）を適用
 const strictLimitMax = store ? 20 : (process.env.NODE_ENV === 'production' ? 1 : 20);
 const generalLimitMax = store ? 100 : (process.env.NODE_ENV === 'production' ? 1 : 100);
 
@@ -98,10 +98,10 @@ const strictLimitMessage = store
     ? 'レート制限に達しました。1時間後に再試行してください。'
     : 'Security Warning: Redis is not configured. Rate limit exceeded for this instance.';
 
-// OCRエンドポイント用の厳格なレート制限
+// 生成エンドポイント用の厳格なレート制限
 const strictLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1時間
-    max: strictLimitMax, // OCRエンドポイントはより厳しく制限
+    max: strictLimitMax, // 生成エンドポイントはより厳しく制限
     standardHeaders: true,
     legacyHeaders: false,
     store: store,
@@ -262,12 +262,12 @@ router.post('/', strictLimiter, async (req, res, next) => {
             return sendValidationError(res, 400, '無効なBase64形式です (デコード失敗)', clientIp);
         }
 
-        // OCR実行 (クリーンアップされたBase64データを使用)
-        const result = await performOCR(cleanedBase64Data);
+        // 生成実行 (クリーンアップされたBase64データを使用)
+        const result = await generateCards(cleanedBase64Data);
 
         res.json({
             success: true,
-            text: result
+            cards: result
         });
 
     } catch (error) {

@@ -1,11 +1,11 @@
 /**
  * @jest-environment node
  */
-const { performOCR } = require('../utils/gemini');
+const { generateCards } = require('../utils/gemini');
 
 const originalFetch = global.fetch;
 
-describe('performOCR', () => {
+describe('generateCards', () => {
     let consoleErrorSpy;
 
     beforeEach(() => {
@@ -39,7 +39,7 @@ describe('performOCR', () => {
             json: jest.fn().mockResolvedValue(mockApiResponse)
         });
 
-        const result = await performOCR('some-base64-data');
+        const result = await generateCards('some-base64-data');
         expect(result).toEqual(validCards);
         expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
@@ -58,7 +58,7 @@ describe('performOCR', () => {
             json: jest.fn().mockResolvedValue(invalidPayload)
         });
 
-        await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
+        await expect(generateCards('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
         expect(consoleErrorSpy).toHaveBeenCalledWith(
             'Failed to parse Gemini response:',
             expect.any(String),
@@ -81,7 +81,7 @@ describe('performOCR', () => {
             json: jest.fn().mockResolvedValue(mockApiResponse)
         });
 
-        await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
+        await expect(generateCards('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
         expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini response is not an array:', JSON.stringify(invalidResponse));
     });
 
@@ -101,7 +101,7 @@ describe('performOCR', () => {
             text: jest.fn().mockResolvedValue(JSON.stringify(mockErrorResponse))
         });
 
-        const errorPromise = performOCR('some-base64-string');
+        const errorPromise = generateCards('some-base64-string');
         await expect(errorPromise).rejects.toThrow('Gemini API error: 400 - API request failed');
         expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini API error details:', mockErrorResponse);
     });
@@ -116,7 +116,7 @@ describe('performOCR', () => {
             text: jest.fn().mockResolvedValue(errorText)
         });
 
-        const errorPromise = performOCR('some-base64-string');
+        const errorPromise = generateCards('some-base64-string');
         await expect(errorPromise).rejects.toThrow('Gemini API error: 500 - API request failed');
         expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini API error details (Text):', errorText);
     });
@@ -129,7 +129,7 @@ describe('performOCR', () => {
             text: jest.fn().mockRejectedValue(new Error('Network error'))
         });
 
-        const errorPromise = performOCR('some-base64-string');
+        const errorPromise = generateCards('some-base64-string');
         await expect(errorPromise).rejects.toThrow('Gemini API error: 502 - API request failed');
         expect(consoleErrorSpy).toHaveBeenCalledWith('Could not read Gemini API response body');
     });
@@ -149,11 +149,11 @@ describe('performOCR', () => {
             json: jest.fn().mockResolvedValue(mockApiResponse)
         });
 
-        await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
+        await expect(generateCards('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
 
         try {
-            await performOCR('some-base64-data');
-            fail('performOCR should have thrown an error');
+            await generateCards('some-base64-data');
+            fail('generateCards should have thrown an error');
         } catch (e) {
             expect(e.message).not.toMatch(/position \d+/);
             expect(e.message).not.toMatch(/Unexpected token/i);

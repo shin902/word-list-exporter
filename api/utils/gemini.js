@@ -4,7 +4,7 @@ const { GEMINI_API_KEY } = require('../config');
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const INVALID_RESPONSE_ERROR = 'Invalid response format from Gemini API';
 
-async function performOCR(base64Image) {
+async function generateCards(base64Image) {
     if (!GEMINI_API_KEY) {
         throw new Error('GEMINI_API_KEY is not configured');
     }
@@ -110,4 +110,4 @@ async function performOCR(base64Image) {
     return cards;
 }
 
-module.exports = { performOCR };
+module.exports = { generateCards };

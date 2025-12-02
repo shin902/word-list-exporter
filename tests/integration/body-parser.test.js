@@ -15,7 +15,7 @@ describe('Body Parser Error Handling', () => {
 
     it('should return 400 for malformed JSON', async () => {
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .set('Content-Type', 'application/json')
             .send('{"image": "test",}'); // Malformed JSON with trailing comma
 
@@ -31,7 +31,7 @@ describe('Body Parser Error Handling', () => {
         const largePayload = { image: 'a'.repeat(2 * 1024 * 1024) }; // ~2MB
 
         const response = await request(app)
-            .post('/api/ocr')
+            .post('/api/generate')
             .send(largePayload);
 
         expect(response.status).toBe(413);
