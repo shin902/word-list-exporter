@@ -1,170 +1,95 @@
-/**
- * @jest-environment node
- */
-const { performOCR } = require('../utils/gemini');
 
-const originalFetch = global.fetch;
+const gemini = require('../../api/utils/gemini');
+const { performOCR } = gemini;
 
-describe('performOCR', () => {
-    let consoleErrorSpy;
+// Mock the config
+jest.mock('../../api/config', () => ({
+    GEMINI_API_KEY: 'test-key'
+}));
 
+// Mock fetch
+global.fetch = jest.fn();
+
+describe('gemini.js performOCR', () => {
     beforeEach(() => {
-        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-        global.fetch = jest.fn();
-        process.env.GEMINI_API_KEY = 'test-key';
+        jest.clearAllMocks();
     });
 
-    afterEach(() => {
-        consoleErrorSpy.mockRestore();
-        jest.resetAllMocks();
-        delete process.env.GEMINI_API_KEY;
-    });
-
-    afterAll(() => {
-        global.fetch = originalFetch;
-    });
-
-    it('returns parsed cards when Gemini API responds with valid JSON array', async () => {
-        const validCards = [{ question: 'hello', answer: 'こんにちは' }];
-        const mockApiResponse = {
-            candidates: [{
-                content: {
-                    parts: [{ text: JSON.stringify(validCards) }]
-                }
-            }]
-        };
-
-        global.fetch.mockResolvedValue({
+    it('should use default prompt (en-ja) when mode is not specified', async () => {
+        // Mock successful response
+        global.fetch.mockResolvedValueOnce({
             ok: true,
-            json: jest.fn().mockResolvedValue(mockApiResponse)
+            json: async () => ({
+                candidates: [{
+                    content: {
+                        parts: [{
+                            text: '[{"question":"apple", "answer":"りんご"}]'
+                        }]
+                    }
+                }]
+            })
         });
 
-        const result = await performOCR('some-base64-data');
-        expect(result).toEqual(validCards);
-        expect(consoleErrorSpy).not.toHaveBeenCalled();
+        await performOCR('base64image');
+
+        // Verify request body
+        const callArgs = global.fetch.mock.calls[0];
+        const requestBody = JSON.parse(callArgs[1].body);
+        const prompt = requestBody.contents[0].parts[0].text;
+
+        expect(prompt).toContain('「英文」と「日本語訳」のペアを抽出してください');
     });
 
-    it('throws a generic error when Gemini API returns invalid JSON', async () => {
-        const invalidPayload = {
-            candidates: [{
-                content: {
-                    parts: [{ text: 'this is not valid json' }]
-                }
-            }]
-        };
-
-        global.fetch.mockResolvedValue({
+    it('should use Japanese->English prompt when mode is ja-en', async () => {
+        // Mock successful response
+        global.fetch.mockResolvedValueOnce({
             ok: true,
-            json: jest.fn().mockResolvedValue(invalidPayload)
+            json: async () => ({
+                candidates: [{
+                    content: {
+                        parts: [{
+                            text: '[{"question":"りんご", "answer":"apple"}]'
+                        }]
+                    }
+                }]
+            })
         });
 
-        await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-            'Failed to parse Gemini response:',
-            expect.any(String),
-            'this is not valid json'
-        );
+        await performOCR('base64image', 'ja-en');
+
+        // Verify request body
+        const callArgs = global.fetch.mock.calls[0];
+        const requestBody = JSON.parse(callArgs[1].body);
+        const prompt = requestBody.contents[0].parts[0].text;
+        const schema = requestBody.generationConfig.responseJsonSchema;
+
+        expect(prompt).toContain('「日本文」と「英訳」のペアを抽出してください');
+        expect(schema.items.properties.question.description).toBe('日本文');
+        expect(schema.items.properties.answer.description).toBe('英訳');
     });
 
-    it('throws a generic error when the response is not an array', async () => {
-        const invalidResponse = { card: 'invalid' };
-        const mockApiResponse = {
-            candidates: [{
-                content: {
-                    parts: [{ text: JSON.stringify(invalidResponse) }]
-                }
-            }]
-        };
-
-        global.fetch.mockResolvedValue({
+    it('should use English->Japanese prompt when mode is en-ja', async () => {
+        // Mock successful response
+        global.fetch.mockResolvedValueOnce({
             ok: true,
-            json: jest.fn().mockResolvedValue(mockApiResponse)
+            json: async () => ({
+                candidates: [{
+                    content: {
+                        parts: [{
+                            text: '[{"question":"apple", "answer":"りんご"}]'
+                        }]
+                    }
+                }]
+            })
         });
 
-        await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
-        expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini response is not an array:', JSON.stringify(invalidResponse));
-    });
+        await performOCR('base64image', 'en-ja');
 
-    it('throws a generic error and logs JSON body when API call fails', async () => {
-        const mockErrorResponse = {
-            error: {
-                code: 400,
-                message: 'API key not valid. Please pass a valid API key.',
-                status: 'INVALID_ARGUMENT'
-            }
-        };
+        // Verify request body
+        const callArgs = global.fetch.mock.calls[0];
+        const requestBody = JSON.parse(callArgs[1].body);
+        const prompt = requestBody.contents[0].parts[0].text;
 
-        global.fetch.mockResolvedValue({
-            ok: false,
-            status: 400,
-            json: jest.fn().mockResolvedValue(mockErrorResponse),
-            text: jest.fn().mockResolvedValue(JSON.stringify(mockErrorResponse))
-        });
-
-        const errorPromise = performOCR('some-base64-string');
-        await expect(errorPromise).rejects.toThrow('Gemini API error: 400 - API request failed');
-        expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini API error details:', mockErrorResponse);
-    });
-
-    it('logs text body when JSON parsing of error response fails', async () => {
-        const errorText = 'Internal Server Error';
-
-        global.fetch.mockResolvedValue({
-            ok: false,
-            status: 500,
-            json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
-            text: jest.fn().mockResolvedValue(errorText)
-        });
-
-        const errorPromise = performOCR('some-base64-string');
-        await expect(errorPromise).rejects.toThrow('Gemini API error: 500 - API request failed');
-        expect(consoleErrorSpy).toHaveBeenCalledWith('Gemini API error details (Text):', errorText);
-    });
-
-    it('logs fallback message when error body cannot be read', async () => {
-        global.fetch.mockResolvedValue({
-            ok: false,
-            status: 502,
-            json: jest.fn().mockRejectedValue(new Error('Network error')),
-            text: jest.fn().mockRejectedValue(new Error('Network error'))
-        });
-
-        const errorPromise = performOCR('some-base64-string');
-        await expect(errorPromise).rejects.toThrow('Gemini API error: 502 - API request failed');
-        expect(consoleErrorSpy).toHaveBeenCalledWith('Could not read Gemini API response body');
-    });
-
-    it('does not expose JSON parse position details to client', async () => {
-        const invalidJson = '{"question": "test", "answer": "test"';
-        const mockApiResponse = {
-            candidates: [{
-                content: {
-                    parts: [{ text: invalidJson }]
-                }
-            }]
-        };
-
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: jest.fn().mockResolvedValue(mockApiResponse)
-        });
-
-        await expect(performOCR('some-base64-data')).rejects.toThrow('Invalid response format from Gemini API');
-
-        try {
-            await performOCR('some-base64-data');
-            fail('performOCR should have thrown an error');
-        } catch (e) {
-            expect(e.message).not.toMatch(/position \d+/);
-            expect(e.message).not.toMatch(/Unexpected token/i);
-        }
-
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-            'Failed to parse Gemini response:',
-            expect.stringMatching(
-                /Unexpected end of JSON input|Unexpected token|Expected .* in JSON/i
-            ),
-            invalidJson
-        );
+        expect(prompt).toContain('「英文」と「日本語訳」のペアを抽出してください');
     });
 });

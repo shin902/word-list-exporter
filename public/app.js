@@ -698,6 +698,8 @@ function initImportView() {
     extractedCards = [];
     isProcessingOCR = false; // 処理フラグもリセット
     document.getElementById('import-category-input').value = '英単語';
+    const modeSelect = document.getElementById('import-mode-select');
+    if (modeSelect) modeSelect.value = 'en-ja';
     document.getElementById('image-input').value = '';
     document.getElementById('preview-canvas').classList.add('hidden');
     document.getElementById('process-image-btn').disabled = true;
@@ -815,7 +817,8 @@ if (typeof document !== 'undefined') {
 
                 // OCRで文字認識（JSON配列として取得）
                 updateImportStatus('OCRで文字を認識中... (しばらくお待ちください)');
-                const cardsData = await performOCR(resizedCanvas);
+                const mode = document.getElementById('import-mode-select')?.value || 'en-ja';
+                const cardsData = await performOCR(resizedCanvas, mode);
 
                 // カテゴリを追加してカードを作成
                 updateImportStatus('カードを作成中...');
@@ -946,10 +949,11 @@ function extractRedText(img) {
 /**
  * OCRで文字認識（Gemini Vision API使用）
  * @param {HTMLCanvasElement} canvas - OCR対象のキャンバス
+ * @param {string} mode - 抽出モード ('en-ja' | 'ja-en')
  * @returns {Promise<string>} 抽出されたテキスト
  * @throws {Error} APIキー未設定、ネットワークエラー、APIエラー
  */
-async function performOCR(canvas) {
+async function performOCR(canvas, mode = 'en-ja') {
     // キャンバスをbase64エンコード
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
 
@@ -961,7 +965,7 @@ async function performOCR(canvas) {
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ image: imageData })
+        body: JSON.stringify({ image: imageData, mode: mode })
     });
 
     if (!response.ok) {

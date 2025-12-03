@@ -4,35 +4,66 @@ const { GEMINI_API_KEY } = require('../config');
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const INVALID_RESPONSE_ERROR = 'Invalid response format from Gemini API';
 
-async function performOCR(base64Image) {
+async function performOCR(base64Image, mode = 'en-ja') {
     if (!GEMINI_API_KEY) {
         throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const prompt = `画像から英語学習用のフラッシュカードに適した「英文」と「日本語訳」のペアを抽出してください。
+    let prompt;
+    let schema;
+
+    if (mode === 'ja-en') {
+        prompt = `画像から英語学習用のフラッシュカードに適した「日本文」と「英訳」のペアを抽出してください。
+以下の点に注意してください：
+1. 画像内の赤文字だけでなく、黒文字なども含めた全てのテキストを対象にしてください。
+2. ページ番号やヘッダーなどの無関係な要素は除外し、学習に適したペアのみを抽出してください。
+3. 教科書や単語帳のようなレイアウト（日本文と英訳が対応している形式）を想定して解析してください。
+各ペアを配列として返してください。`;
+
+        schema = {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    question: {
+                        type: "string",
+                        description: "日本文"
+                    },
+                    answer: {
+                        type: "string",
+                        description: "英訳"
+                    }
+                },
+                required: ["question", "answer"]
+            }
+        };
+    } else {
+        // Default: en-ja
+        prompt = `画像から英語学習用のフラッシュカードに適した「英文」と「日本語訳」のペアを抽出してください。
 以下の点に注意してください：
 1. 画像内の赤文字だけでなく、黒文字なども含めた全てのテキストを対象にしてください。
 2. ページ番号やヘッダーなどの無関係な要素は除外し、学習に適したペアのみを抽出してください。
 3. 教科書や単語帳のようなレイアウト（英文と訳が対応している形式）を想定して解析してください。
 各ペアを配列として返してください。`;
 
-    const schema = {
-        type: "array",
-        items: {
-            type: "object",
-            properties: {
-                question: {
-                    type: "string",
-                    description: "英文"
+        schema = {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    question: {
+                        type: "string",
+                        description: "英文"
+                    },
+                    answer: {
+                        type: "string",
+                        description: "日本語訳"
+                    }
                 },
-                answer: {
-                    type: "string",
-                    description: "日本語訳"
-                }
-            },
-            required: ["question", "answer"]
-        }
-    };
+                required: ["question", "answer"]
+            }
+        };
+    }
 
     const requestBody = {
         contents: [{
