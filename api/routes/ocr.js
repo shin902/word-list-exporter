@@ -194,7 +194,7 @@ router.post('/', strictLimiter, async (req, res, next) => {
     const clientIp = getClientIp(req);
     
     try {
-        const { image } = req.body;
+        const { image, mode } = req.body;
 
         // バリデーション
         if (!image) {
@@ -263,7 +263,9 @@ router.post('/', strictLimiter, async (req, res, next) => {
         }
 
         // OCR実行 (クリーンアップされたBase64データを使用)
-        const result = await performOCR(cleanedBase64Data);
+        // modeのバリデーション: 許可された値のみを通す
+        const validMode = (mode === 'ja-en' || mode === 'en-ja') ? mode : 'en-ja';
+        const result = await performOCR(cleanedBase64Data, validMode);
 
         res.json({
             success: true,
